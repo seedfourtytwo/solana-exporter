@@ -14,16 +14,17 @@ type (
 	arrayFlags []string
 
 	ExporterConfig struct {
-		HttpTimeout               time.Duration
-		RpcUrl                    string
-		ListenAddress             string
-		NodeKeys                  []string
-		VoteKeys                  []string
-		BalanceAddresses          []string
-		ComprehensiveSlotTracking bool
-		MonitorBlockSizes         bool
-		LightMode                 bool
-		SlotPace                  time.Duration
+		HttpTimeout                      time.Duration
+		RpcUrl                           string
+		ListenAddress                    string
+		NodeKeys                         []string
+		VoteKeys                         []string
+		BalanceAddresses                 []string
+		ComprehensiveSlotTracking        bool
+		ComprehensiveVoteAccountTracking bool
+		MonitorBlockSizes                bool
+		LightMode                        bool
+		SlotPace                         time.Duration
 		ActiveIdentity            string
 	}
 )
@@ -45,6 +46,7 @@ func NewExporterConfig(
 	nodeKeys []string,
 	balanceAddresses []string,
 	comprehensiveSlotTracking bool,
+	comprehensiveVoteAccountTracking bool,
 	monitorBlockSizes bool,
 	lightMode bool,
 	slotPace time.Duration,
@@ -59,6 +61,7 @@ func NewExporterConfig(
 		"nodeKeys", nodeKeys,
 		"balanceAddresses", balanceAddresses,
 		"comprehensiveSlotTracking", comprehensiveSlotTracking,
+		"comprehensiveVoteAccountTracking", comprehensiveVoteAccountTracking,
 		"monitorBlockSizes", monitorBlockSizes,
 		"lightMode", lightMode,
 		"activeIdentity", activeIdentity,
@@ -66,6 +69,10 @@ func NewExporterConfig(
 	if lightMode {
 		if comprehensiveSlotTracking {
 			return nil, fmt.Errorf("'-light-mode' is incompatible with `-comprehensive-slot-tracking`")
+		}
+
+		if comprehensiveVoteAccountTracking {
+			return nil, fmt.Errorf("'-light-mode' is incompatible with '-comprehensive-vote-account-tracking'")
 		}
 
 		if monitorBlockSizes {
@@ -91,16 +98,17 @@ func NewExporterConfig(
 	}
 
 	config := ExporterConfig{
-		HttpTimeout:               httpTimeout,
-		RpcUrl:                    rpcUrl,
-		ListenAddress:             listenAddress,
-		NodeKeys:                  nodeKeys,
-		VoteKeys:                  voteKeys,
-		BalanceAddresses:          balanceAddresses,
-		ComprehensiveSlotTracking: comprehensiveSlotTracking,
-		MonitorBlockSizes:         monitorBlockSizes,
-		LightMode:                 lightMode,
-		SlotPace:                  slotPace,
+		HttpTimeout:                      httpTimeout,
+		RpcUrl:                           rpcUrl,
+		ListenAddress:                    listenAddress,
+		NodeKeys:                         nodeKeys,
+		VoteKeys:                         voteKeys,
+		BalanceAddresses:                 balanceAddresses,
+		ComprehensiveSlotTracking:        comprehensiveSlotTracking,
+		ComprehensiveVoteAccountTracking: comprehensiveVoteAccountTracking,
+		MonitorBlockSizes:                monitorBlockSizes,
+		LightMode:                        lightMode,
+		SlotPace:                         slotPace,
 		ActiveIdentity:            activeIdentity,
 	}
 	return &config, nil
@@ -108,15 +116,16 @@ func NewExporterConfig(
 
 func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 	var (
-		httpTimeout               int
-		rpcUrl                    string
-		listenAddress             string
-		nodekeys                  arrayFlags
-		balanceAddresses          arrayFlags
-		comprehensiveSlotTracking bool
-		monitorBlockSizes         bool
-		lightMode                 bool
-		slotPace                  int
+		httpTimeout                      int
+		rpcUrl                           string
+		listenAddress                    string
+		nodekeys                         arrayFlags
+		balanceAddresses                 arrayFlags
+		comprehensiveSlotTracking        bool
+		comprehensiveVoteAccountTracking bool
+		monitorBlockSizes                bool
+		lightMode                        bool
+		slotPace                         int
 		activeIdentity            string
 	)
 	flag.IntVar(
@@ -153,8 +162,15 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		&comprehensiveSlotTracking,
 		"comprehensive-slot-tracking",
 		false,
-		"Set this flag to track solana_leader_slots_by_epoch for ALL validators. "+
+		"Set this flag to track solana_validator_leader_slots_by_epoch for all validators. "+
 			"Warning: this will lead to potentially thousands of new Prometheus metrics being created every epoch.",
+	)
+	flag.BoolVar(
+		&comprehensiveVoteAccountTracking,
+		"comprehensive-vote-account-tracking",
+		false,
+		"Set this flag to track vote-account metrics such as solana_validator_active_stake for all validators. "+
+			"Warning: this will lead to potentially thousands of Prometheus metrics.",
 	)
 	flag.BoolVar(
 		&monitorBlockSizes,
@@ -193,6 +209,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		nodekeys,
 		balanceAddresses,
 		comprehensiveSlotTracking,
+		comprehensiveVoteAccountTracking,
 		monitorBlockSizes,
 		lightMode,
 		time.Duration(slotPace)*time.Second,
