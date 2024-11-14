@@ -206,6 +206,7 @@ func newTestConfig(simulator *Simulator, fast bool) *ExporterConfig {
 		VoteKeys:                  simulator.Votekeys,
 		BalanceAddresses:          nil,
 		ComprehensiveSlotTracking: true,
+		ComprehensiveVoteAccountTracking: true,
 		MonitorBlockSizes:         true,
 		LightMode:                 false,
 		SlotPace:                  pace,

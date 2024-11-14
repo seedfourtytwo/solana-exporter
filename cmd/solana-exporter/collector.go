@@ -43,21 +43,21 @@ type SolanaCollector struct {
 	config *ExporterConfig
 
 	/// descriptors:
-	ValidatorActiveStake         *GaugeDesc
-	ClusterActiveStake           *GaugeDesc
-	ValidatorLastVote            *GaugeDesc
-	ClusterLastVote              *GaugeDesc
-	ValidatorRootSlot            *GaugeDesc
-	ClusterRootSlot              *GaugeDesc
-	ValidatorDelinquent          *GaugeDesc
-	ClusterValidatorCount        *GaugeDesc
-	AccountBalances              *GaugeDesc
-	NodeVersion                  *GaugeDesc
+	ValidatorActiveStake    *GaugeDesc
+	ClusterActiveStake      *GaugeDesc
+	ValidatorLastVote       *GaugeDesc
+	ClusterLastVote         *GaugeDesc
+	ValidatorRootSlot       *GaugeDesc
+	ClusterRootSlot         *GaugeDesc
+	ValidatorDelinquent     *GaugeDesc
+	ClusterValidatorCount   *GaugeDesc
+	AccountBalances         *GaugeDesc
+	NodeVersion             *GaugeDesc
+	NodeIsHealthy           *GaugeDesc
+	NodeNumSlotsBehind      *GaugeDesc
+	NodeMinimumLedgerSlot   *GaugeDesc
+	NodeFirstAvailableBlock *GaugeDesc
 	NodeIdentity                 *GaugeDesc
-	NodeIsHealthy                *GaugeDesc
-	NodeNumSlotsBehind           *GaugeDesc
-	NodeMinimumLedgerSlot        *GaugeDesc
-	NodeFirstAvailableBlock      *GaugeDesc
 	NodeIsActive                 *GaugeDesc
 	FoundationMinRequiredVersion *GaugeDesc
 }
