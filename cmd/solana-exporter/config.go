@@ -26,6 +26,7 @@ type (
 		LightMode                        bool
 		SlotPace                         time.Duration
 		ActiveIdentity                   string
+		EpochCleanupTime                 time.Duration
 	}
 )
 
@@ -51,6 +52,7 @@ func NewExporterConfig(
 	lightMode bool,
 	slotPace time.Duration,
 	activeIdentity string,
+	epochCleanupTime time.Duration,
 ) (*ExporterConfig, error) {
 	logger := slog.Get()
 	logger.Infow(
@@ -65,6 +67,8 @@ func NewExporterConfig(
 		"monitorBlockSizes", monitorBlockSizes,
 		"lightMode", lightMode,
 		"activeIdentity", activeIdentity,
+		"slotPace", slotPace,
+		"epochCleanupTime", epochCleanupTime,
 	)
 	if lightMode {
 		if comprehensiveSlotTracking {
@@ -110,6 +114,7 @@ func NewExporterConfig(
 		LightMode:                        lightMode,
 		SlotPace:                         slotPace,
 		ActiveIdentity:                   activeIdentity,
+		EpochCleanupTime:                 epochCleanupTime,
 	}
 	return &config, nil
 }
@@ -127,6 +132,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		lightMode                        bool
 		slotPace                         int
 		activeIdentity                   string
+		epochCleanupTime                 int
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -191,7 +197,13 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		&slotPace,
 		"slot-pace",
 		1,
-		"This is the time between slot-watching metric collections, defaults to 1s.",
+		"This is the time (in seconds) between slot-watching metric collections, defaults to 1s.",
+	)
+	flag.IntVar(
+		&epochCleanupTime,
+		"epoch-cleanup-time",
+		60,
+		"The time (in seconds) to wait for end-of-epoch metrics to be scraped before cleaning, defaults to 60s",
 	)
 	flag.StringVar(
 		&activeIdentity,
@@ -214,6 +226,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		lightMode,
 		time.Duration(slotPace)*time.Second,
 		activeIdentity,
+		time.Duration(epochCleanupTime)*time.Second,
 	)
 	if err != nil {
 		return nil, err

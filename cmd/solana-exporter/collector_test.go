@@ -299,7 +299,6 @@ func TestSolanaCollector(t *testing.T) {
 		),
 	}
 
-	fmt.Println(testCases[1].ExpectedResponse)
 	for _, test := range testCases {
 		t.Run(test.Name, func(t *testing.T) {
 			err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)
