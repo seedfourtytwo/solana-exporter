@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/asymmetric-research/solana-exporter/pkg/slog"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"slices"
 	"time"
+
+	"github.com/asymmetric-research/solana-exporter/pkg/slog"
+	"go.uber.org/zap"
 )
 
 type (
@@ -131,6 +132,18 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return resp.Result.Version, nil
+}
+
+// GetIdentity returns the current Solana version running on the node.
+// See API docs: https://solana.com/docs/rpc/http/getidentity
+func (c *Client) GetIdentity(ctx context.Context) (string, error) {
+	var resp Response[struct {
+		Identity string `json:"identity"`
+	}]
+	if err := getResponse(ctx, c, "getIdentity", []any{}, &resp); err != nil {
+		return "", err
+	}
+	return resp.Result.Identity, nil
 }
 
 // GetSlot returns the slot that has reached the given or default commitment level.
