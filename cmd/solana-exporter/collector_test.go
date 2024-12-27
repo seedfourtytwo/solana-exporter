@@ -57,6 +57,7 @@ func NewSimulator(t *testing.T, slot int) (*Simulator, *rpc.Client) {
 	mockServer, client := rpc.NewMockClient(t,
 		map[string]any{
 			"getVersion":        map[string]string{"solana-core": "v1.0.0"},
+			"getIdentity":       map[string]string{"identity": "testIdentity"},
 			"getLeaderSchedule": leaderSchedule,
 			"getHealth":         "ok",
 		},
@@ -235,6 +236,9 @@ func TestSolanaCollector(t *testing.T) {
 		),
 		collector.NodeVersion.makeCollectionTest(
 			NewLV(1, "v1.0.0"),
+		),
+		collector.NodeIdentity.makeCollectionTest(
+			NewLV(1, "testIdentity"),
 		),
 		collector.NodeIsHealthy.makeCollectionTest(
 			NewLV(1),
