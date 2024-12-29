@@ -4,9 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"time"
+
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/asymmetric-research/solana-exporter/pkg/slog"
-	"time"
 )
 
 type (
@@ -23,6 +24,7 @@ type (
 		MonitorBlockSizes         bool
 		LightMode                 bool
 		SlotPace                  time.Duration
+		ActiveIdentity            string
 	}
 )
 
@@ -46,6 +48,7 @@ func NewExporterConfig(
 	monitorBlockSizes bool,
 	lightMode bool,
 	slotPace time.Duration,
+	activeIdentity string,
 ) (*ExporterConfig, error) {
 	logger := slog.Get()
 	logger.Infow(
@@ -58,6 +61,7 @@ func NewExporterConfig(
 		"comprehensiveSlotTracking", comprehensiveSlotTracking,
 		"monitorBlockSizes", monitorBlockSizes,
 		"lightMode", lightMode,
+		"activeIdentity", activeIdentity,
 	)
 	if lightMode {
 		if comprehensiveSlotTracking {
@@ -97,6 +101,7 @@ func NewExporterConfig(
 		MonitorBlockSizes:         monitorBlockSizes,
 		LightMode:                 lightMode,
 		SlotPace:                  slotPace,
+		ActiveIdentity:            activeIdentity,
 	}
 	return &config, nil
 }
@@ -112,6 +117,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		monitorBlockSizes         bool
 		lightMode                 bool
 		slotPace                  int
+		activeIdentity            string
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -171,6 +177,12 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		1,
 		"This is the time between slot-watching metric collections, defaults to 1s.",
 	)
+	flag.StringVar(
+		&activeIdentity,
+		"active-identity",
+		"",
+		"Validator identity public key that determines if the node is considered active in the 'solana_node_is_active' metric.",
+	)
 	flag.Parse()
 
 	config, err := NewExporterConfig(
@@ -184,6 +196,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		monitorBlockSizes,
 		lightMode,
 		time.Duration(slotPace)*time.Second,
+		activeIdentity,
 	)
 	if err != nil {
 		return nil, err

@@ -46,6 +46,7 @@ type SolanaCollector struct {
 	NodeNumSlotsBehind      *GaugeDesc
 	NodeMinimumLedgerSlot   *GaugeDesc
 	NodeFirstAvailableBlock *GaugeDesc
+	NodeIsActive            *GaugeDesc
 }
 
 func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaCollector {
@@ -104,6 +105,11 @@ func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaColle
 			"solana_node_first_available_block",
 			"The slot of the lowest confirmed block that has not been purged from the node's ledger.",
 		),
+		NodeIsActive: NewGaugeDesc(
+			"solana_node_is_active",
+			fmt.Sprintf("Whether the node is active and participating in consensus (using %s pubkey)", IdentityLabel),
+			IdentityLabel,
+		),
 	}
 	return collector
 }
@@ -120,6 +126,7 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.NodeNumSlotsBehind.Desc
 	ch <- c.NodeMinimumLedgerSlot.Desc
 	ch <- c.NodeFirstAvailableBlock.Desc
+	ch <- c.NodeIsActive.Desc
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -175,6 +182,15 @@ func (c *SolanaCollector) collectIdentity(ctx context.Context, ch chan<- prometh
 		c.logger.Errorf("failed to get identity: %v", err)
 		ch <- c.NodeIdentity.NewInvalidMetric(err)
 		return
+	}
+
+	if c.config.ActiveIdentity != "" {
+		isActive := 0
+		if c.config.ActiveIdentity == identity {
+			isActive = 1
+		}
+		ch <- c.NodeIsActive.MustNewConstMetric(float64(isActive), identity)
+		c.logger.Info("NodeIsActive collected.")
 	}
 
 	ch <- c.NodeIdentity.MustNewConstMetric(1, identity)

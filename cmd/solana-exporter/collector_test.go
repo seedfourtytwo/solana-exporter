@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
 	"math"
 	"math/rand"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 )
 
 type (
@@ -192,16 +193,17 @@ func newTestConfig(simulator *Simulator, fast bool) *ExporterConfig {
 		pace = time.Duration(500) * time.Millisecond
 	}
 	config := ExporterConfig{
-		time.Second * time.Duration(1),
-		simulator.Server.URL(),
-		":8080",
-		simulator.Nodekeys,
-		simulator.Votekeys,
-		nil,
-		true,
-		true,
-		false,
-		pace,
+		HttpTimeout:               time.Second * time.Duration(1),
+		RpcUrl:                    simulator.Server.URL(),
+		ListenAddress:             ":8080",
+		NodeKeys:                  simulator.Nodekeys,
+		VoteKeys:                  simulator.Votekeys,
+		BalanceAddresses:          nil,
+		ComprehensiveSlotTracking: true,
+		MonitorBlockSizes:         true,
+		LightMode:                 false,
+		SlotPace:                  pace,
+		ActiveIdentity:            simulator.Nodekeys[0],
 	}
 	return &config
 }
@@ -239,6 +241,9 @@ func TestSolanaCollector(t *testing.T) {
 		),
 		collector.NodeIdentity.makeCollectionTest(
 			NewLV(1, "testIdentity"),
+		),
+		collector.NodeIsActive.makeCollectionTest(
+			NewLV(0, "testIdentity"),
 		),
 		collector.NodeIsHealthy.makeCollectionTest(
 			NewLV(1),
