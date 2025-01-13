@@ -16,6 +16,7 @@ const (
 	NodekeyLabel         = "nodekey"
 	VotekeyLabel         = "votekey"
 	VersionLabel         = "version"
+	IdentityLabel        = "identity"
 	AddressLabel         = "address"
 	EpochLabel           = "epoch"
 	TransactionTypeLabel = "transaction_type"
@@ -85,7 +86,7 @@ func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaColle
 		NodeIdentity: NewGaugeDesc(
 			"solana_node_identity",
 			"Node identity of solana",
-			VersionLabel,
+			IdentityLabel,
 		),
 		NodeIsHealthy: NewGaugeDesc(
 			"solana_node_is_healthy",
