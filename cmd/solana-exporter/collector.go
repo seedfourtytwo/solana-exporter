@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/asymmetric-research/solana-exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,6 +16,7 @@ const (
 	NodekeyLabel         = "nodekey"
 	VotekeyLabel         = "votekey"
 	VersionLabel         = "version"
+	IdentityLabel        = "identity"
 	AddressLabel         = "address"
 	EpochLabel           = "epoch"
 	TransactionTypeLabel = "transaction_type"
@@ -39,6 +41,7 @@ type SolanaCollector struct {
 	ValidatorDelinquent     *GaugeDesc
 	AccountBalances         *GaugeDesc
 	NodeVersion             *GaugeDesc
+	NodeIdentity            *GaugeDesc
 	NodeIsHealthy           *GaugeDesc
 	NodeNumSlotsBehind      *GaugeDesc
 	NodeMinimumLedgerSlot   *GaugeDesc
@@ -80,6 +83,11 @@ func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaColle
 			"Node version of solana",
 			VersionLabel,
 		),
+		NodeIdentity: NewGaugeDesc(
+			"solana_node_identity",
+			"Node identity of solana",
+			IdentityLabel,
+		),
 		NodeIsHealthy: NewGaugeDesc(
 			"solana_node_is_healthy",
 			"Whether the node is healthy",
@@ -102,6 +110,7 @@ func NewSolanaCollector(client *rpc.Client, config *ExporterConfig) *SolanaColle
 
 func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.NodeVersion.Desc
+	ch <- c.NodeIdentity.Desc
 	ch <- c.ValidatorActiveStake.Desc
 	ch <- c.ValidatorLastVote.Desc
 	ch <- c.ValidatorRootSlot.Desc
@@ -158,6 +167,20 @@ func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- promethe
 	ch <- c.NodeVersion.MustNewConstMetric(1, version)
 	c.logger.Info("Version collected.")
 }
+
+func (c *SolanaCollector) collectIdentity(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Info("Collecting identity...")
+	identity, err := c.rpcClient.GetIdentity(ctx)
+	if err != nil {
+		c.logger.Errorf("failed to get identity: %v", err)
+		ch <- c.NodeIdentity.NewInvalidMetric(err)
+		return
+	}
+
+	ch <- c.NodeIdentity.MustNewConstMetric(1, identity)
+	c.logger.Info("Identity collected.")
+}
+
 func (c *SolanaCollector) collectMinimumLedgerSlot(ctx context.Context, ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting minimum ledger slot...")
 	slot, err := c.rpcClient.GetMinimumLedgerSlot(ctx)
@@ -170,6 +193,7 @@ func (c *SolanaCollector) collectMinimumLedgerSlot(ctx context.Context, ch chan<
 	ch <- c.NodeMinimumLedgerSlot.MustNewConstMetric(float64(slot))
 	c.logger.Info("Minimum ledger slot collected.")
 }
+
 func (c *SolanaCollector) collectFirstAvailableBlock(ctx context.Context, ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting first available block...")
 	block, err := c.rpcClient.GetFirstAvailableBlock(ctx)
@@ -254,6 +278,7 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.collectFirstAvailableBlock(ctx, ch)
 	c.collectVoteAccounts(ctx, ch)
 	c.collectVersion(ctx, ch)
+	c.collectIdentity(ctx, ch)
 	c.collectBalances(ctx, ch)
 
 	c.logger.Info("=========== END COLLECTION ===========")
