@@ -134,7 +134,7 @@ func (c *Client) GetVersion(ctx context.Context) (string, error) {
 	return resp.Result.Version, nil
 }
 
-// GetIdentity returns the current Solana version running on the node.
+// GetIdentity returns identity pubkey for the current node.
 // See API docs: https://solana.com/docs/rpc/http/getidentity
 func (c *Client) GetIdentity(ctx context.Context) (string, error) {
 	var resp Response[struct {
