@@ -2,8 +2,9 @@ package rpc
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func newMethodTester(t *testing.T, method string, result any) (*MockServer, *Client) {
@@ -243,4 +244,16 @@ func TestClient_GetVoteAccounts(t *testing.T) {
 		},
 		voteAccounts,
 	)
+}
+
+func TestClient_GetIdentity(t *testing.T) {
+	_, client := newMethodTester(t, "getIdentity", map[string]string{
+		"identity": "random2r1F4iWqVcb8M1DbAjQuFpebkQuW2DJtestkey",
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	identity, err := client.GetIdentity(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, "random2r1F4iWqVcb8M1DbAjQuFpebkQuW2DJtestkey", identity)
 }
