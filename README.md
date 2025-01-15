@@ -89,6 +89,7 @@ The table below describes all the metrics collected by the `solana-exporter`:
 | `solana_validator_fee_rewards`                 | Transaction fee rewards earned.                                                          | `nodekey`, `epoch`            |
 | `solana_validator_block_size`                  | Number of transactions per block.                                                        | `nodekey`, `transaction_type` |
 | `solana_node_block_height`                     | The current block height of the node.*                                                   | N/A                           |
+| `solana_foundation_min_required_version`        | Minimum required Solana version for the [solana foundation delegation program](https://solana.org/delegation-program)                        | `version`, `cluster`          |
 
 ***NOTE***: An `*` in the description indicates that the metric **is** tracked in `-light-mode`.
 
@@ -102,6 +103,7 @@ The table below describes the various metric labels:
 | `votekey`           | Validator vote account address.     | e.g., `CertusDeBmqN8ZawdkxK5kFGMwBXdudvWHYwtNgNhvLu` |
 | `address`          | Solana account address.             | e.g., `Certusm1sa411sMpV9FPqU5dXAYhmmhygvxJ23S6hJ24` |
 | `version`          | Solana node version.                | e.g., `v1.18.23`                                     |
+| `cluster`          | Solana cluster name.                | `mainnet-beta`, `testnet`, `devnet`                  |
 | `status`           | Whether a slot was skipped or valid | `valid`, `skipped`                                   |
 | `epoch`            | Solana epoch number.                | e.g., `663`                                          |
 | `transaction_type` | General transaction type.           | `vote`, `non_vote`                                   |

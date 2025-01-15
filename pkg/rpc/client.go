@@ -44,7 +44,26 @@ const (
 	CommitmentConfirmed Commitment = "confirmed"
 	// CommitmentProcessed level represents a transaction that has been received by the network and included in a block.
 	CommitmentProcessed Commitment = "processed"
+
+	// Genesis hashes for different Solana clusters
+	DevnetGenesisHash  = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+	TestnetGenesisHash = "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY"
+	MainnetGenesisHash = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
 )
+
+// getClusterFromGenesisHash returns the cluster name based on the genesis hash
+func GetClusterFromGenesisHash(hash string) (string, error) {
+	switch hash {
+	case DevnetGenesisHash:
+		return "devnet", nil
+	case TestnetGenesisHash:
+		return "testnet", nil
+	case MainnetGenesisHash:
+		return "mainnet-beta", nil
+	default:
+		return "", fmt.Errorf("unknown genesis hash: %s", hash)
+	}
+}
 
 func NewRPCClient(rpcAddr string, httpTimeout time.Duration) *Client {
 	return &Client{HttpClient: http.Client{}, RpcUrl: rpcAddr, HttpTimeout: httpTimeout, logger: slog.Get()}
@@ -269,6 +288,16 @@ func (c *Client) GetFirstAvailableBlock(ctx context.Context) (int64, error) {
 	var resp Response[int64]
 	if err := getResponse(ctx, c, "getFirstAvailableBlock", []any{}, &resp); err != nil {
 		return 0, err
+	}
+	return resp.Result, nil
+}
+
+// GetGenesisHash returns the hash of the genesis block
+// See API docs: https://solana.com/docs/rpc/http/getgenesishash
+func (c *Client) GetGenesisHash(ctx context.Context) (string, error) {
+	var resp Response[string]
+	if err := getResponse(ctx, c, "getGenesisHash", []any{}, &resp); err != nil {
+		return "", err
 	}
 	return resp.Result, nil
 }
