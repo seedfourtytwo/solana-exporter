@@ -269,12 +269,16 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 }
 
 // cleanEpoch deletes old epoch-labelled metrics which are no longer being updated due to an epoch change.
-func (c *SlotWatcher) cleanEpoch(epoch int64) {
+func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 	c.logger.Infof(
 		"Waiting %vs before cleaning epoch %d...",
 		c.config.EpochCleanupTime.Seconds(), epoch,
 	)
-	time.Sleep(c.config.EpochCleanupTime)
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(c.config.EpochCleanupTime):
+	}
 
 	c.logger.Infof("Cleaning epoch %d", epoch)
 	epochStr := toString(epoch)
@@ -304,14 +308,13 @@ func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.Epoch
 	c.logger.Infof("Closing current epoch %v, moving into epoch %v", c.currentEpoch, newEpoch.Epoch)
 	// fetch inflation rewards for epoch we about to close:
 	if len(c.config.VoteKeys) > 0 {
-		err := c.fetchAndEmitInflationRewards(ctx, c.currentEpoch)
-		if err != nil {
+		if err := c.fetchAndEmitInflationRewards(ctx, c.currentEpoch); err != nil {
 			c.logger.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
 		}
 	}
 
 	c.moveSlotWatermark(ctx, c.lastSlot)
-	go c.cleanEpoch(c.currentEpoch)
+	go c.cleanEpoch(ctx, c.currentEpoch)
 	c.trackEpoch(ctx, newEpoch)
 }
 
@@ -497,9 +500,8 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 }
 
 func (c *SlotWatcher) deleteMetricLabelValues(metric *prometheus.CounterVec, name string, lvs ...string) {
-	c.logger.Infof("deleting %v with lv %v", name, lvs)
-	ok := metric.DeleteLabelValues(lvs...)
-	if !ok {
+	c.logger.Debugf("deleting %v with lv %v", name, lvs)
+	if ok := metric.DeleteLabelValues(lvs...); !ok {
 		c.logger.Errorf("Failed to delete %s with label values %v", name, lvs)
 	}
 }
