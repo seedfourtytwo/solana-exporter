@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/asymmetric-research/solana-exporter/pkg/slog"
-	"go.uber.org/zap"
 	"net"
 	"net/http"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/asymmetric-research/solana-exporter/pkg/slog"
+	"go.uber.org/zap"
 )
 
 type MockOpt int
