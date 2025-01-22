@@ -24,7 +24,7 @@ func TestNewExporterConfig(t *testing.T) {
 		slotPace                         time.Duration
 		wantErr                          bool
 		expectedVoteKeys                 []string
-		activeIdentity            string
+		activeIdentity                   string
 	}{
 		{
 			name:                             "valid configuration",
@@ -40,7 +40,7 @@ func TestNewExporterConfig(t *testing.T) {
 			slotPace:                         time.Second,
 			wantErr:                          false,
 			expectedVoteKeys:                 simulator.Votekeys,
-			activeIdentity:            simulator.Nodekeys[0],
+			activeIdentity:                   simulator.Nodekeys[0],
 		},
 		{
 			name:                             "light mode with incompatible options",
@@ -56,7 +56,7 @@ func TestNewExporterConfig(t *testing.T) {
 			slotPace:                         time.Second,
 			wantErr:                          true,
 			expectedVoteKeys:                 nil,
-			activeIdentity:            simulator.Nodekeys[0],
+			activeIdentity:                   simulator.Nodekeys[0],
 		},
 		{
 			name:                             "empty node keys",
@@ -72,7 +72,7 @@ func TestNewExporterConfig(t *testing.T) {
 			slotPace:                         time.Second,
 			wantErr:                          false,
 			expectedVoteKeys:                 []string{},
-			activeIdentity:            simulator.Nodekeys[0],
+			activeIdentity:                   simulator.Nodekeys[0],
 		},
 	}
 

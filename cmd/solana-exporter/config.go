@@ -25,7 +25,7 @@ type (
 		MonitorBlockSizes                bool
 		LightMode                        bool
 		SlotPace                         time.Duration
-		ActiveIdentity            string
+		ActiveIdentity                   string
 	}
 )
 
@@ -109,7 +109,7 @@ func NewExporterConfig(
 		MonitorBlockSizes:                monitorBlockSizes,
 		LightMode:                        lightMode,
 		SlotPace:                         slotPace,
-		ActiveIdentity:            activeIdentity,
+		ActiveIdentity:                   activeIdentity,
 	}
 	return &config, nil
 }
@@ -126,7 +126,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		monitorBlockSizes                bool
 		lightMode                        bool
 		slotPace                         int
-		activeIdentity            string
+		activeIdentity                   string
 	)
 	flag.IntVar(
 		&httpTimeout,
