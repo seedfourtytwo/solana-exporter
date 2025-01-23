@@ -199,18 +199,22 @@ func newTestConfig(simulator *Simulator, fast bool) *ExporterConfig {
 		pace = time.Duration(500) * time.Millisecond
 	}
 	config := ExporterConfig{
-		HttpTimeout:               time.Second * time.Duration(1),
-		RpcUrl:                    simulator.Server.URL(),
-		ListenAddress:             ":8080",
-		NodeKeys:                  simulator.Nodekeys,
-		VoteKeys:                  simulator.Votekeys,
-		BalanceAddresses:          nil,
-		ComprehensiveSlotTracking: true,
+		HttpTimeout:                      time.Second * time.Duration(1),
+		RpcUrl:                           simulator.Server.URL(),
+		ListenAddress:                    ":8080",
+		NodeKeys:                         simulator.Nodekeys,
+		VoteKeys:                         simulator.Votekeys,
+		BalanceAddresses:                 nil,
+		ComprehensiveSlotTracking:        true,
 		ComprehensiveVoteAccountTracking: true,
-		MonitorBlockSizes:         true,
-		LightMode:                 false,
-		SlotPace:                  pace,
-		ActiveIdentity:            simulator.Nodekeys[0],
+		MonitorBlockSizes:                true,
+		LightMode:                        false,
+		SlotPace:                         pace,
+		ActiveIdentity:                   simulator.Nodekeys[0],
+		// we need to set the epoch cleanup time to long enough such that we can test that the final state for the
+		// previous epoch is correct before cleaning it. Ideally I would like a better way of doing this than simply
+		// "waiting long enough", but this should do for now
+		EpochCleanupTime: 5 * time.Second,
 	}
 	return &config
 }
