@@ -53,11 +53,11 @@ type SolanaCollector struct {
 	ClusterValidatorCount        *GaugeDesc
 	AccountBalances              *GaugeDesc
 	NodeVersion                  *GaugeDesc
-	NodeIdentity                 *GaugeDesc
 	NodeIsHealthy                *GaugeDesc
 	NodeNumSlotsBehind           *GaugeDesc
 	NodeMinimumLedgerSlot        *GaugeDesc
 	NodeFirstAvailableBlock      *GaugeDesc
+	NodeIdentity                 *GaugeDesc
 	NodeIsActive                 *GaugeDesc
 	FoundationMinRequiredVersion *GaugeDesc
 }
