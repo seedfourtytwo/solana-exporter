@@ -14,7 +14,7 @@ for metric descriptions):
 
 * `solana_account_balance` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
 * `solana_node_is_healthy` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
-* `solana_nude_num_slots_behind` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
+* `solana_node_num_slots_behind` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
 * `solana_node_minimum_ledger_slot` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
 * `solana_node_first_available_block` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
 * `solana_cluster_slots_by_epoch_total` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>) 
