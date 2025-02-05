@@ -15,6 +15,7 @@ solana-exporter \
   -balance-address <ADDRESS_1> -balance-address <ADDRESS_2> \
   -comprehensive-slot-tracking \
   -monitor-block-sizes
+  -active-identity <MY_ACTIVE_IDENTITY>
 ```
 
 ![Solana Exporter Dashboard Sample](assets/solana-dashboard-screenshot.png)
