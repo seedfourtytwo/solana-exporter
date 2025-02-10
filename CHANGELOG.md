@@ -12,23 +12,26 @@ and more configurability.
 Below is a list of newly added metrics (see the [README](README.md) 
 for metric descriptions):
 
-* `solana_account_balance` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
-* `solana_node_is_healthy` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
-* `solana_node_num_slots_behind` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
-* `solana_node_minimum_ledger_slot` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
-* `solana_node_first_available_block` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
-* `solana_cluster_slots_by_epoch_total` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>) 
-* `solana_validator_fee_rewards` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
-* `solana_validator_block_size` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
-* `solana_node_block_height` (<u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u>)
-* `solana_cluster_active_stake` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
-* `solana_cluster_last_vote` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
-* `solana_cluster_root_slot` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
-* `solana_cluster_validator_count` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
+* `solana_account_balance` (**[@johnstonematt](https://github.com/johnstonematt)**)
+* `solana_node_is_healthy` (**[@GranderStark](https://github.com/GranderStark)**)
+* `solana_node_num_slots_behind` (**[@GranderStark](https://github.com/GranderStark)**)
+* `solana_node_minimum_ledger_slot` (**[@GranderStark](https://github.com/GranderStark)**)
+* `solana_node_first_available_block` (**[@GranderStark](https://github.com/GranderStark)**)
+* `solana_cluster_slots_by_epoch_total` (**[@johnstonematt](https://github.com/johnstonematt)**) 
+* `solana_validator_fee_rewards` (**[@johnstonematt](https://github.com/johnstonematt)**)
+* `solana_validator_block_size` (**[@johnstonematt](https://github.com/johnstonematt)**)
+* `solana_node_block_height` (**[@GranderStark](https://github.com/GranderStark)**)
+* `solana_cluster_active_stake` (**[@johnstonematt](https://github.com/johnstonematt)**)
+* `solana_cluster_last_vote` (**[@johnstonematt](https://github.com/johnstonematt)**)
+* `solana_cluster_root_slot` (**[@johnstonematt](https://github.com/johnstonematt)**)
+* `solana_cluster_validator_count` (**[@johnstonematt](https://github.com/johnstonematt)**)
+* `solana_node_identity` (**[@impactdni2](https://github.com/impactdni2)**)
+* `solana_node_is_active` (**[@andreclaro](https://github.com/andreclaro)**)
+* `solana_foundation_min_required_version` (**[@qedgardo](https://github.com/qedgardo)**)
 
 #### Renamed Metrics
 
-The table below contains all metrics renamed in `v3.0.0` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>):
+The table below contains all metrics renamed in `v3.0.0` (**[@johnstonematt](https://github.com/johnstonematt)**):
 
 | Old Name                              | New Name                                       |
 |---------------------------------------|------------------------------------------------|
@@ -50,14 +53,14 @@ Metrics were renamed to:
 
 #### Label Updates
 
-The following labels were renamed (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>):
+The following labels were renamed (**[@johnstonematt](https://github.com/johnstonematt)**):
  * `pubkey` was renamed to `votekey`, to clearly identity that it refers to the address of a validators vote account.
 
 ### Config Updates
 #### New Config Parameters
 
 Below is a list of newly added config parameters (see the [README](README.md) 
-for parameter descriptions) (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>):
+for parameter descriptions) (**[@johnstonematt](https://github.com/johnstonematt)**):
 
  * `-balance-address`
  * `-nodekey`
@@ -67,10 +70,12 @@ for parameter descriptions) (<u><strong>[@johnstonematt](https://github.com/john
  * `-light-mode`
  * `-http-timeout`
  * `-comprehensive-vote-account-tracking`
+ * `-active-identity`
+ * `epoch-cleanup-time`
 
 #### Renamed Config Parameters
 
-The table below contains all config parameters renamed in `v3.0.0` (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>):
+The table below contains all config parameters renamed in `v3.0.0` (**[@johnstonematt](https://github.com/johnstonematt)**):
 
 | Old Name                            | New Name          |
 |-------------------------------------|-------------------|
@@ -79,21 +84,25 @@ The table below contains all config parameters renamed in `v3.0.0` (<u><strong>[
 
 #### Removed Config Parameters
 
-The following metrics were removed (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>):
+The following metrics were removed (**[@johnstonematt](https://github.com/johnstonematt)**):
 
  * `votepubkey`. Configure validator tracking using the `-nodekey` parameter.
 
 ### General Updates
 
 * The project was renamed from `solana_exporter` to `solana-exporter`, to conform with 
-[Go naming conventions](https://github.com/unknwon/go-code-convention/blob/main/en-US.md) (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>).
-* Testing was significantly improved (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>).
+[Go naming conventions](https://github.com/unknwon/go-code-convention/blob/main/en-US.md) (**[@johnstonematt](https://github.com/johnstonematt)**).
+* Testing was significantly improved (**[@johnstonematt](https://github.com/johnstonematt)**).
 * [klog](https://github.com/kubernetes/klog) logging was removed and replaced with [zap](https://github.com/uber-go/zap)
-  (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>)
-* Easy usage (<u><strong>[@johnstonematt](https://github.com/johnstonematt)</strong></u>):
+  (**[@johnstonematt](https://github.com/johnstonematt)**)
+* Easy usage (**[@johnstonematt](https://github.com/johnstonematt)**):
   * The example dashboard was updated.
   * An example prometheus config was added, as well as recording rules for tracking skip rate.
 
 ## New Contributors
 
-* <u><strong>[@GranderStark](https://github.com/GranderStark)</strong></u> made their first contribution.
+* **[@GranderStark](https://github.com/GranderStark)** made their first contribution in **[#33](https://github.com/asymmetric-research/solana-exporter/pull/33)**.
+* **[@dylanschultzie](https://github.com/dylanschultzie)** made their first contribution in **[#49](https://github.com/asymmetric-research/solana-exporter/pull/49)**.
+* **[@impactdni2](https://github.com/impactdni2)** made their first contribution in **[#83](https://github.com/asymmetric-research/solana-exporter/pull/83)**.
+* **[@andreclaro](https://github.com/andreclaro)** made their first contribution in **[#84](https://github.com/asymmetric-research/solana-exporter/pull/84)**.
+* **[@qedgardo](https://github.com/quedgardo)** made their first contribution in **[#85](https://github.com/asymmetric-research/solana-exporter/pull/85)**.
