@@ -24,11 +24,12 @@ solana-exporter \
 #### Balance Tracking
 
 Using the `-balance-address <ADDRESS>` configuration parameter, the exporter can be used to monitor any account's
-SOL balance.
+SOL balance. This parameter can be set multiple times to track multiple accounts. Additionally, the balance of all 
+configured `-nodekey`'s is automatically tracked.
 
 #### Block Sizes
 
-If the `-monitor-block-sizes` flag is set, then the exporter will export the number of transactions (both vote and 
+If the `-monitor-block-sizes` flag is set, then the exporter will export the number of transactions (both vote-only and 
 non-vote transactions) in blocks produced by the monitored validators. This is a critical validator performance metric. 
 
 Cluster average block size can be inferred by dividing total network transactions by total block height.
