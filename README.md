@@ -15,9 +15,60 @@ solana-exporter \
   -balance-address <ADDRESS_1> -balance-address <ADDRESS_2> \
   -comprehensive-slot-tracking \
   -monitor-block-sizes
+  -active-identity <MY_ACTIVE_IDENTITY>
 ```
 
 ![Solana Exporter Dashboard Sample](assets/solana-dashboard-screenshot.png)
+
+### Features
+#### Balance Tracking
+
+Using the `-balance-address <ADDRESS>` configuration parameter, the exporter can be used to monitor any account's
+SOL balance. This parameter can be set multiple times to track multiple accounts. Additionally, the balance of all 
+configured `-nodekey`'s is automatically tracked.
+
+#### Block Sizes
+
+If the `-monitor-block-sizes` flag is set, then the exporter will export the number of transactions (both vote-only and 
+non-vote transactions) in blocks produced by the monitored validators. This is a critical validator performance metric. 
+
+Cluster average block size can be inferred by dividing total network transactions by total block height.
+
+#### Income Reporting
+
+The exporter exports metrics regarding total priority fee revenue and inflation reward revenue earned by the 
+monitored validators.
+
+#### Skip Rate
+
+The exporter does not directly export skip rate, as this needs to be defined as an average over a desired timeframe. 
+However, the exporter does track the monitored validators leader slots and whether they are `valid` or `skipped`.
+
+The example prometheus setup contains [recording rules](prometheus/solana-rules.yml) for measuring average skip rate 
+for both individual validators and a cluster-level over hourly, daily and epoch intervals.
+
+#### Active/Passive Monitoring
+
+The `solana_node_is_active` metric simply reports whether the node (on which the exporter is running) has the same 
+identity-keypair as that configured with the `-active-identity` flag. The `-active-identity` flag should be used to 
+specify the primary identity when using a 
+[non-delinquent backup validator](https://pumpkins-pool.gitbook.io/pumpkins-pool).
+
+#### Light Mode
+
+Certain metrics, such as validator leader slots, income, block size and active stake, are visible on-chain through any 
+trusted node. However, other metrics such as node health and block height can only be viewed from an exporter running 
+on the node in question. Thus, on a node in which fine margins of performance are of critical interest, the exporter 
+can be set to `-light-mode`. In light mode, it will only export metrics that cannot be viewed from other nodes.
+
+This is particularly useful in setups that contain an important validator and utility RPC node - the exporter can be 
+run in light mode on the validator and in full capacity on the RPC node (configured to monitor the validator through 
+use of the `-nodekey` parameter).
+
+#### General Performance and Health
+
+In addition to the above features, the exporter provides key metrics for monitoring Solana node health and performance. 
+See [Metrics](#metrics) below for more details.
 
 ## Installation
 ### Build
@@ -49,6 +100,7 @@ The exporter is configured via the following command line arguments:
 | `-rpc-url`                             | Solana RPC URL (including protocol and path), e.g., `"http://localhost:8899"` or `"https://api.mainnet-beta.solana.com"`                                                                                                | `"http://localhost:8899"` |
 | `-slot-pace`                           | This is the time (in seconds) between slot-watching metric collections                                                                                                                                                  | `1`                       |
 | `-active-identity`                     | Validator identity public key used to determine if the node is considered active in the `solana_node_is_active` metric.                                                                                                 | N/A                       |
+| `-epoch-cleanup-time`                  | The time to wait before cleaning old epoch metrics from the prometheus endpoint.                                                                                                                                        |                           |
 
 ### Notes on Configuration
 
@@ -95,11 +147,6 @@ The tables below describes all the metrics collected by the `solana-exporter`:
 | `solana_node_block_height`                     | The current block height of the node.                                                                                 | N/A                           |
 | `solana_node_is_active`                        | Whether the node is active and participating in consensus.                                                            | `identity`                    |
 | `solana_foundation_min_required_version`       | Minimum required Solana version for the [solana foundation delegation program](https://solana.org/delegation-program) | `version`, `cluster`          |
-
-#### Light Mode
-
-In `-light-mode`, the exporter will only track metrics that uniquely to the node being queried. These metric names 
-all begin with `solana_node_*`.
 
 #### Vote Account Metrics
 

@@ -45,13 +45,12 @@ const (
 	// CommitmentProcessed level represents a transaction that has been received by the network and included in a block.
 	CommitmentProcessed Commitment = "processed"
 
-	// Genesis hashes for different Solana clusters
 	DevnetGenesisHash  = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
 	TestnetGenesisHash = "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY"
 	MainnetGenesisHash = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
 )
 
-// getClusterFromGenesisHash returns the cluster name based on the genesis hash
+// GetClusterFromGenesisHash returns the cluster name based on the genesis hash
 func GetClusterFromGenesisHash(hash string) (string, error) {
 	switch hash {
 	case DevnetGenesisHash:
@@ -133,7 +132,6 @@ func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*Epoc
 func (c *Client) GetVoteAccounts(ctx context.Context, commitment Commitment) (*VoteAccounts, error) {
 	// format params:
 	config := map[string]string{"commitment": string(commitment)}
-
 	var resp Response[VoteAccounts]
 	if err := getResponse(ctx, c, "getVoteAccounts", []any{config}, &resp); err != nil {
 		return nil, err
@@ -186,7 +184,6 @@ func (c *Client) GetBlockProduction(
 		"commitment": string(commitment),
 		"range":      map[string]int64{"firstSlot": firstSlot, "lastSlot": lastSlot},
 	}
-
 	// make request:
 	var resp Response[contextualResult[BlockProduction]]
 	if err := getResponse(ctx, c, "getBlockProduction", []any{config}, &resp); err != nil {
@@ -213,7 +210,6 @@ func (c *Client) GetInflationReward(
 ) ([]InflationReward, error) {
 	// format params:
 	config := map[string]any{"commitment": string(commitment), "epoch": epoch}
-
 	var resp Response[[]InflationReward]
 	if err := getResponse(ctx, c, "getInflationReward", []any{addresses, config}, &resp); err != nil {
 		return nil, err
