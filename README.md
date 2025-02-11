@@ -146,7 +146,6 @@ The tables below describes all the metrics collected by the `solana-exporter`:
 | `solana_validator_block_size`                  | Number of transactions per block.                                                                                     | `nodekey`, `transaction_type` |
 | `solana_node_block_height`                     | The current block height of the node.                                                                                 | N/A                           |
 | `solana_node_is_active`                        | Whether the node is active and participating in consensus.                                                            | `identity`                    |
-| `solana_foundation_min_required_version`       | Minimum required Solana version for the [solana foundation delegation program](https://solana.org/delegation-program) | `version`, `cluster`          |
 
 #### Vote Account Metrics
 
@@ -174,4 +173,3 @@ The table below describes the various metric labels:
 | `status`           | Whether a slot was skipped or valid.          | `valid`, `skipped`                                   |
 | `epoch`            | Solana epoch number.                          | e.g., `663`                                          |
 | `transaction_type` | General transaction type.                     | `vote`, `non_vote`                                   |
-| `cluster`          | Solana cluster name.                          | `mainnet-beta`, `testnet`, `devnet`                  |

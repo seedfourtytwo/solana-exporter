@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/asymmetric-research/solana-exporter/pkg/api"
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/asymmetric-research/solana-exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,8 +27,7 @@ func main() {
 	}
 
 	rpcClient := rpc.NewRPCClient(config.RpcUrl, config.HttpTimeout)
-	apiClient := api.NewClient()
-	collector := NewSolanaCollector(rpcClient, apiClient, config)
+	collector := NewSolanaCollector(rpcClient, config)
 	slotWatcher := NewSlotWatcher(rpcClient, config)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

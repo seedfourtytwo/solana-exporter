@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/asymmetric-research/solana-exporter/pkg/api"
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -223,12 +222,8 @@ func TestSolanaCollector(t *testing.T) {
 	simulator, client := NewSimulator(t, 35)
 	simulator.Server.SetOpt(rpc.EasyResultsOpt, "getGenesisHash", rpc.MainnetGenesisHash)
 
-	mock := api.NewMockClient()
-	mock.SetMinRequiredVersion("2.0.20")
-
 	collector := NewSolanaCollector(
 		client,
-		mock.Client,
 		newTestConfig(simulator, false),
 	)
 	prometheus.NewPedanticRegistry().MustRegister(collector)
@@ -297,9 +292,6 @@ func TestSolanaCollector(t *testing.T) {
 		),
 		collector.NodeFirstAvailableBlock.makeCollectionTest(
 			NewLV(11),
-		),
-		collector.FoundationMinRequiredVersion.makeCollectionTest(
-			NewLV(1, "mainnet-beta", "2.0.20"),
 		),
 	}
 

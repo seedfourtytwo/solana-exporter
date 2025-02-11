@@ -27,7 +27,6 @@ for metric descriptions):
 * `solana_cluster_validator_count` (**[@johnstonematt](https://github.com/johnstonematt)**)
 * `solana_node_identity` (**[@impactdni2](https://github.com/impactdni2)**)
 * `solana_node_is_active` (**[@andreclaro](https://github.com/andreclaro)**)
-* `solana_foundation_min_required_version` (**[@qedgardo](https://github.com/qedgardo)**)
 
 #### Renamed Metrics
 
@@ -105,4 +104,3 @@ The following metrics were removed (**[@johnstonematt](https://github.com/johnst
 * **[@dylanschultzie](https://github.com/dylanschultzie)** made their first contribution in **[#49](https://github.com/asymmetric-research/solana-exporter/pull/49)**.
 * **[@impactdni2](https://github.com/impactdni2)** made their first contribution in **[#83](https://github.com/asymmetric-research/solana-exporter/pull/83)**.
 * **[@andreclaro](https://github.com/andreclaro)** made their first contribution in **[#84](https://github.com/asymmetric-research/solana-exporter/pull/84)**.
-* **[@qedgardo](https://github.com/quedgardo)** made their first contribution in **[#85](https://github.com/asymmetric-research/solana-exporter/pull/85)**.
