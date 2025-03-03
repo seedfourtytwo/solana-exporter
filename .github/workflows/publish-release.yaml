@@ -18,6 +18,7 @@ jobs:
       attestations: write
 
     steps:
+      # TODO: pin these actions!
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
@@ -72,3 +73,11 @@ jobs:
           subject-digest: ${{ steps.build-and-push.outputs.digest }}
           sbom-path: sbom.json
           push-to-registry: true
+
+      # Re-push the tagged image last to ensure it's the default displayed version
+      - name: Re-push tagged image
+        run: |
+          echo "Re-pushing tagged image to ensure it's the default version"
+          docker pull ghcr.io/${{ github.repository }}@${{ steps.build-and-push.outputs.digest }}
+          docker tag ghcr.io/${{ github.repository }}@${{ steps.build-and-push.outputs.digest }} ghcr.io/${{ github.repository }}:${{ inputs.tag }}
+          docker push ghcr.io/${{ github.repository }}:${{ inputs.tag }}
