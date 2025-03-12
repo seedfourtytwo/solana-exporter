@@ -152,3 +152,42 @@ func TestEpochTrackedValidators_AddTrackedValidators(t *testing.T) {
 		etv.trackedNodekeys,
 	)
 }
+
+func TestBoolToFloat64(t *testing.T) {
+	assert.Equal(t, float64(1), BoolToFloat64(true))
+	assert.Equal(t, float64(0), BoolToFloat64(false))
+}
+
+func TestExtractHealthAndNumSlotsBehind(t *testing.T) {
+	t.Run("healthy-node", func(t *testing.T) {
+		health, healthErr, slots, slotsErr := ExtractHealthAndNumSlotsBehind("ok", nil)
+		assert.Equal(t, true, health)
+		assert.NoError(t, healthErr)
+		assert.Equal(t, slots, int64(0))
+		assert.NoError(t, slotsErr)
+	})
+
+	t.Run("unhealthy-node", func(t *testing.T) {
+		getHealthErr := rpc.RPCError{
+			Code:    -32005,
+			Method:  "getHealth",
+			Message: "Node is unhealthy",
+		}
+		t.Run("generic", func(t *testing.T) {
+			health, healthErr, slots, slotsErr := ExtractHealthAndNumSlotsBehind("", &getHealthErr)
+			assert.Equal(t, false, health)
+			assert.NoError(t, healthErr)
+			assert.Equal(t, slots, int64(0))
+			assert.Error(t, slotsErr)
+		})
+
+		getHealthErr.Data = map[string]any{"numSlotsBehind": 42}
+		t.Run("specific", func(t *testing.T) {
+			health, healthErr, slots, slotsErr := ExtractHealthAndNumSlotsBehind("", &getHealthErr)
+			assert.Equal(t, false, health)
+			assert.NoError(t, healthErr)
+			assert.Equal(t, int64(42), slots)
+			assert.NoError(t, slotsErr)
+		})
+	})
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
 	"github.com/asymmetric-research/solana-exporter/pkg/slog"
@@ -185,4 +186,63 @@ func CountVoteTransactions(block *rpc.Block) (int, error) {
 		}
 	}
 	return voteCount, nil
+}
+
+// BoolToFloat64 converts a boolean to either 1.0 or 0.0
+func BoolToFloat64(b bool) float64 {
+	if b {
+		return 1
+	} else {
+		return 0
+	}
+}
+
+// ExtractHealthAndNumSlotsBehind takes the outputs from the GetHealth RPC method and determines the corresponding
+// health status and number of slots behind, along with potential errors corresponding to each metric
+func ExtractHealthAndNumSlotsBehind(health string, getHealthErr error) (bool, error, int64, error) {
+	// healthy node:
+	if health == "ok" {
+		// this is checking an edge case which is unexpected to happen; whenever we have "ok",
+		// we shouldn't be getting an error
+		if getHealthErr != nil {
+			// if this happens, return and error for both values:
+			err := fmt.Errorf("health check returned 'ok' and error: %w", getHealthErr)
+			return false, err, 0, err
+		}
+
+		// in this expected case, we are healthy + no error:
+		return true, nil, 0, nil
+	}
+
+	// now for an unhealthy node, first check this unexpected edge case: whenever we don't get "ok" from the
+	// health check, we should get an error
+	if getHealthErr == nil {
+		// if this happens, return and error for both values:
+		err := fmt.Errorf("health check did not return 'ok' (%s) but no error", health)
+		return false, err, 0, err
+	}
+
+	// now from here on, we just have to handle the error, first check if it's some random error
+	// and not an unhealthy-node error:
+	var rpcError *rpc.RPCError
+	if ok := errors.As(getHealthErr, &rpcError); !ok || rpcError.Code != rpc.NodeUnhealthyCode {
+		err := fmt.Errorf("failed to call getHealth: %w", getHealthErr)
+		return false, err, 0, err
+	}
+
+	// from here, this must be a node-unhealthy error, so now we check if it's generic or not
+	// see docs (https://solana.com/docs/rpc/http/gethealth)
+	if rpcError.Data == nil {
+		// this is the generic case:
+		return false, nil, 0, fmt.Errorf("unhealthy node but cannot determine numSlotsBehind: %w", getHealthErr)
+	}
+
+	var errorData rpc.NodeUnhealthyErrorData
+	if err := rpc.UnpackRpcErrorData(rpcError, &errorData); err != nil {
+		// if we error here, it means we have the incorrect format:
+		return false, nil, 0, fmt.Errorf("failed to unpack RPC error data: %w", err)
+	}
+
+	// if it unpacked correctly, then just return the numSlotsBehind:
+	return false, nil, errorData.NumSlotsBehind, nil
 }
