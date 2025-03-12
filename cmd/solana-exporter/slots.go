@@ -432,7 +432,7 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 	}
 	block, err := c.client.GetBlock(ctx, rpc.CommitmentConfirmed, slot, transactionDetails)
 	if err != nil {
-		var rpcError *rpc.RPCError
+		var rpcError *rpc.Error
 		if errors.As(err, &rpcError) {
 			// this is the error code for slot was skipped:
 			if rpcError.Code == rpc.SlotSkippedCode && strings.Contains(rpcError.Message, "skipped") {

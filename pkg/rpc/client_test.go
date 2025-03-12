@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMethodTester(t *testing.T, method string, result any, err *RPCError) (*MockServer, *Client) {
+func newMethodTester(t *testing.T, method string, result any, err *Error) (*MockServer, *Client) {
 	t.Helper()
-	errs := make(map[string]*RPCError)
+	errs := make(map[string]*Error)
 	if err != nil {
 		errs[method] = err
 	}
@@ -150,7 +150,7 @@ func TestClient_GetHealth(t *testing.T) {
 	})
 
 	t.Run("unhealthy-node", func(t *testing.T) {
-		unhealthyErr := RPCError{
+		unhealthyErr := Error{
 			Code:    NodeUnhealthyCode,
 			Message: "Node is unhealthy",
 			Method:  "getHealth",

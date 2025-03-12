@@ -224,7 +224,7 @@ func ExtractHealthAndNumSlotsBehind(health string, getHealthErr error) (bool, er
 
 	// now from here on, we just have to handle the error, first check if it's some random error
 	// and not an unhealthy-node error:
-	var rpcError *rpc.RPCError
+	var rpcError *rpc.Error
 	if ok := errors.As(getHealthErr, &rpcError); !ok || rpcError.Code != rpc.NodeUnhealthyCode {
 		err := fmt.Errorf("failed to call getHealth: %w", getHealthErr)
 		return false, err, 0, err

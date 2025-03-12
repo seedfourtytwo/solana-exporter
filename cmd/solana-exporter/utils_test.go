@@ -168,7 +168,7 @@ func TestExtractHealthAndNumSlotsBehind(t *testing.T) {
 	})
 
 	t.Run("unhealthy-node", func(t *testing.T) {
-		getHealthErr := rpc.RPCError{
+		getHealthErr := rpc.Error{
 			Code:    -32005,
 			Method:  "getHealth",
 			Message: "Node is unhealthy",

@@ -321,7 +321,7 @@ func TestSolanaCollector_collectHealth(t *testing.T) {
 		}
 	})
 
-	getHealthErr := rpc.RPCError{
+	getHealthErr := rpc.Error{
 		Code:    rpc.NodeUnhealthyCode,
 		Method:  "getHealth",
 		Message: "Node is unhealthy",
