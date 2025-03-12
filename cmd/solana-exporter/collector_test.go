@@ -223,10 +223,7 @@ func TestSolanaCollector(t *testing.T) {
 	simulator, client := NewSimulator(t, 35)
 	simulator.Server.SetOpt(rpc.EasyResultsOpt, "getGenesisHash", rpc.MainnetGenesisHash)
 
-	collector := NewSolanaCollector(
-		client,
-		newTestConfig(simulator, false),
-	)
+	collector := NewSolanaCollector(client, newTestConfig(simulator, false))
 	prometheus.NewPedanticRegistry().MustRegister(collector)
 
 	stake := float64(1_000_000) / rpc.LamportsInSol
@@ -302,4 +299,48 @@ func TestSolanaCollector(t *testing.T) {
 			assert.NoErrorf(t, err, "unexpected collecting result for %s: \n%s", test.Name, err)
 		})
 	}
+}
+
+func TestSolanaCollector_collectHealth(t *testing.T) {
+	simulator, client := NewSimulator(t, 0)
+
+	collector := NewSolanaCollector(client, newTestConfig(simulator, false))
+	prometheus.NewPedanticRegistry().MustRegister(collector)
+
+	t.Run("healthy", func(t *testing.T) {
+		testCases := []collectionTest{
+			collector.NodeIsHealthy.makeCollectionTest(NewLV(1)),
+			collector.NodeNumSlotsBehind.makeCollectionTest(NewLV(0)),
+		}
+
+		for _, test := range testCases {
+			t.Run(test.Name, func(t *testing.T) {
+				err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)
+				assert.NoErrorf(t, err, "unexpected collecting result for %s: \n%s", test.Name, err)
+			})
+		}
+	})
+
+	getHealthErr := rpc.RPCError{
+		Code:    rpc.NodeUnhealthyCode,
+		Method:  "getHealth",
+		Message: "Node is unhealthy",
+		Data:    map[string]any{"numSlotsBehind": 42},
+	}
+
+	// TODO: when I try test the generic case, it fails because of the error emitted to the
+	//  solana_node_num_slots_behind metric
+	t.Run("unhealthy", func(t *testing.T) {
+		simulator.Server.SetOpt(rpc.EasyErrorsOpt, "getHealth", getHealthErr)
+
+		testCases := []collectionTest{
+			collector.NodeIsHealthy.makeCollectionTest(NewLV(0)),
+		}
+		for _, test := range testCases {
+			t.Run(test.Name, func(t *testing.T) {
+				err := testutil.CollectAndCompare(collector, bytes.NewBufferString(test.ExpectedResponse), test.Name)
+				assert.NoErrorf(t, err, "unexpected collecting result for %s: \n%s", test.Name, err)
+			})
+		}
+	})
 }

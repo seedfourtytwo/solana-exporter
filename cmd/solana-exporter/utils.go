@@ -234,6 +234,9 @@ func ExtractHealthAndNumSlotsBehind(health string, getHealthErr error) (bool, er
 	// see docs (https://solana.com/docs/rpc/http/gethealth)
 	if rpcError.Data == nil {
 		// this is the generic case:
+		// TODO: in this generic case, do we want to emit an error to the solana_node_num_slots_behind metric?
+		//  The node is definitely unhealthy, but we do not have the information to determine what numSlotsBehind is,
+		//  so do we say 0 or error?
 		return false, nil, 0, fmt.Errorf("unhealthy node but cannot determine numSlotsBehind: %w", getHealthErr)
 	}
 

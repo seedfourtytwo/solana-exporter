@@ -22,6 +22,7 @@ const (
 	EasyResultsOpt
 	SlotInfosOpt
 	ValidatorInfoOpt
+	EasyErrorsOpt = 5
 )
 
 type (
@@ -144,6 +145,12 @@ func (s *MockServer) SetOpt(opt MockOpt, key any, value any) {
 			s.validatorInfos = make(map[string]MockValidatorInfo)
 		}
 		s.validatorInfos[key.(string)] = value.(MockValidatorInfo)
+	case EasyErrorsOpt:
+		if s.easyErrors == nil {
+			s.easyErrors = make(map[string]*RPCError)
+		}
+		err := value.(RPCError)
+		s.easyErrors[key.(string)] = &err
 	}
 }
 
