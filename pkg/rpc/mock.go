@@ -35,6 +35,7 @@ type (
 		balances         map[string]int
 		inflationRewards map[string]int
 		easyResults      map[string]any
+		easyErrors       map[string]*RPCError
 
 		SlotInfos      map[int]MockSlotInfo
 		validatorInfos map[string]MockValidatorInfo
@@ -62,6 +63,7 @@ type (
 // NewMockServer creates a new mock server instance
 func NewMockServer(
 	easyResults map[string]any,
+	easyErrors map[string]*RPCError,
 	balances map[string]int,
 	inflationRewards map[string]int,
 	slotInfos map[int]MockSlotInfo,
@@ -76,6 +78,7 @@ func NewMockServer(
 		listener:         listener,
 		logger:           slog.Get(),
 		easyResults:      easyResults,
+		easyErrors:       easyErrors,
 		balances:         balances,
 		inflationRewards: inflationRewards,
 		SlotInfos:        slotInfos,
@@ -153,6 +156,12 @@ func (s *MockServer) GetValidatorInfo(nodekey string) MockValidatorInfo {
 func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	if s.easyErrors != nil {
+		if err, ok := s.easyErrors[method]; ok && err != nil {
+			return nil, err
+		}
+	}
 
 	if method == "getBalance" && s.balances != nil {
 		address := params[0].(string)
@@ -301,12 +310,13 @@ func (s *MockServer) handleRPCRequest(w http.ResponseWriter, r *http.Request) {
 func NewMockClient(
 	t *testing.T,
 	easyResults map[string]any,
+	easyErrors map[string]*RPCError,
 	balances map[string]int,
 	inflationRewards map[string]int,
 	slotInfos map[int]MockSlotInfo,
 	validatorInfos map[string]MockValidatorInfo,
 ) (*MockServer, *Client) {
-	server, err := NewMockServer(easyResults, balances, inflationRewards, slotInfos, validatorInfos)
+	server, err := NewMockServer(easyResults, easyErrors, balances, inflationRewards, slotInfos, validatorInfos)
 	if err != nil {
 		t.Fatalf("failed to create mock server: %v", err)
 	}

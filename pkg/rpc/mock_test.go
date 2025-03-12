@@ -9,7 +9,7 @@ import (
 
 func TestMockServer_getBalance(t *testing.T) {
 	_, client := NewMockClient(
-		t, nil, map[string]int{"aaa": 2 * LamportsInSol}, nil, nil, nil,
+		t, nil, nil, map[string]int{"aaa": 2 * LamportsInSol}, nil, nil, nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -21,6 +21,7 @@ func TestMockServer_getBalance(t *testing.T) {
 
 func TestMockServer_getBlock(t *testing.T) {
 	_, client := NewMockClient(t,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -63,6 +64,7 @@ func TestMockServer_getBlockProduction(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		map[int]MockSlotInfo{
 			1: {"aaa", &MockBlockInfo{}},
 			2: {"aaa", &MockBlockInfo{}},
@@ -98,6 +100,7 @@ func TestMockServer_getInflationReward(t *testing.T) {
 	_, client := NewMockClient(t,
 		nil,
 		nil,
+		nil,
 		map[string]int{"AAA": 2_500, "BBB": 2_501, "CCC": 2_502},
 		nil,
 		nil,
@@ -116,6 +119,7 @@ func TestMockServer_getInflationReward(t *testing.T) {
 
 func TestMockServer_getVoteAccounts(t *testing.T) {
 	_, client := NewMockClient(t,
+		nil,
 		nil,
 		nil,
 		nil,

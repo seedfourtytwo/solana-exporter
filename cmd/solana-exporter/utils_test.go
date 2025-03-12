@@ -35,7 +35,7 @@ func TestGetTrimmedLeaderSchedule(t *testing.T) {
 				"ccc": []int{2, 5, 8, 11, 14},
 			},
 		},
-		nil, nil, nil, nil,
+		nil, nil, nil, nil, nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

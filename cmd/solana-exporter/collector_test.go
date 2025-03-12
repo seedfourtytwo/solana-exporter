@@ -64,6 +64,7 @@ func NewSimulator(t *testing.T, slot int) (*Simulator, *rpc.Client) {
 			"getLeaderSchedule": leaderSchedule,
 			"getHealth":         "ok",
 		},
+		nil,
 		map[string]int{
 			"aaa": 1 * rpc.LamportsInSol,
 			"bbb": 2 * rpc.LamportsInSol,
