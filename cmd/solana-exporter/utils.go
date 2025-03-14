@@ -192,9 +192,8 @@ func CountVoteTransactions(block *rpc.Block) (int, error) {
 func BoolToFloat64(b bool) float64 {
 	if b {
 		return 1
-	} else {
-		return 0
 	}
+	return 0
 }
 
 // ExtractHealthAndNumSlotsBehind takes the outputs from the GetHealth RPC method and determines the corresponding
