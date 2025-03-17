@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
@@ -311,40 +310,23 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 
 func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting health...")
-	var (
-		isHealthy      = 1
-		numSlotsBehind int64
-	)
 
-	_, err := c.rpcClient.GetHealth(ctx)
-	if err != nil {
-		var rpcError *rpc.RPCError
-		if errors.As(err, &rpcError) {
-			var errorData rpc.NodeUnhealthyErrorData
-			if rpcError.Data == nil {
-				// if there is no data, then this is some unexpected error and should just be logged
-				c.logger.Errorf("failed to get health: %v", err)
-				ch <- c.NodeIsHealthy.NewInvalidMetric(err)
-				ch <- c.NodeNumSlotsBehind.NewInvalidMetric(err)
-				return
-			}
-			if err = rpc.UnpackRpcErrorData(rpcError, &errorData); err != nil {
-				// if we error here, it means we have the incorrect format
-				c.logger.Fatalf("failed to unpack %s rpc error: %v", rpcError.Method, err.Error())
-			}
-			isHealthy = 0
-			numSlotsBehind = errorData.NumSlotsBehind
-		} else {
-			// if it's not an RPC error, log it
-			c.logger.Errorf("failed to get health: %v", err)
-			ch <- c.NodeIsHealthy.NewInvalidMetric(err)
-			ch <- c.NodeNumSlotsBehind.NewInvalidMetric(err)
-			return
-		}
+	health, err := c.rpcClient.GetHealth(ctx)
+	isHealthy, isHealthyErr, numSlotsBehind, numSlotsBehindErr := ExtractHealthAndNumSlotsBehind(health, err)
+	if isHealthyErr != nil {
+		c.logger.Errorf("failed to determine node health: %v", isHealthyErr)
+		ch <- c.NodeIsHealthy.NewInvalidMetric(err)
+	} else {
+		ch <- c.NodeIsHealthy.MustNewConstMetric(BoolToFloat64(isHealthy))
 	}
 
-	ch <- c.NodeIsHealthy.MustNewConstMetric(float64(isHealthy))
-	ch <- c.NodeNumSlotsBehind.MustNewConstMetric(float64(numSlotsBehind))
+	if numSlotsBehindErr != nil {
+		c.logger.Errorf("failed to determine number of slots behind: %v", numSlotsBehindErr)
+		ch <- c.NodeNumSlotsBehind.NewInvalidMetric(numSlotsBehindErr)
+	} else {
+		ch <- c.NodeNumSlotsBehind.MustNewConstMetric(float64(numSlotsBehind))
+	}
+
 	c.logger.Info("Health collected.")
 	return
 }

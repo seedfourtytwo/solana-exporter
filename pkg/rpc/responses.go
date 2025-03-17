@@ -6,7 +6,7 @@ import (
 )
 
 type (
-	RPCError struct {
+	Error struct {
 		Message string         `json:"message"`
 		Code    int64          `json:"code"`
 		Data    map[string]any `json:"data"`
@@ -15,10 +15,10 @@ type (
 	}
 
 	Response[T any] struct {
-		Jsonrpc string   `json:"jsonrpc"`
-		Result  T        `json:"result,omitempty"`
-		Error   RPCError `json:"error,omitempty"`
-		Id      int      `json:"id"`
+		Jsonrpc string `json:"jsonrpc"`
+		Result  T      `json:"result,omitempty"`
+		Error   Error  `json:"error,omitempty"`
+		Id      int    `json:"id"`
 	}
 
 	contextualResult[T any] struct {
@@ -90,7 +90,7 @@ type (
 	}
 )
 
-func (e *RPCError) Error() string {
+func (e *Error) Error() string {
 	return fmt.Sprintf("%s rpc error (code: %d): %s (data: %v)", e.Method, e.Code, e.Message, e.Data)
 }
 

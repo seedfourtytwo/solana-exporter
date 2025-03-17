@@ -22,6 +22,7 @@ const (
 	EasyResultsOpt
 	SlotInfosOpt
 	ValidatorInfoOpt
+	EasyErrorsOpt = 5
 )
 
 type (
@@ -35,6 +36,7 @@ type (
 		balances         map[string]int
 		inflationRewards map[string]int
 		easyResults      map[string]any
+		easyErrors       map[string]*Error
 
 		SlotInfos      map[int]MockSlotInfo
 		validatorInfos map[string]MockValidatorInfo
@@ -62,6 +64,7 @@ type (
 // NewMockServer creates a new mock server instance
 func NewMockServer(
 	easyResults map[string]any,
+	easyErrors map[string]*Error,
 	balances map[string]int,
 	inflationRewards map[string]int,
 	slotInfos map[int]MockSlotInfo,
@@ -76,6 +79,7 @@ func NewMockServer(
 		listener:         listener,
 		logger:           slog.Get(),
 		easyResults:      easyResults,
+		easyErrors:       easyErrors,
 		balances:         balances,
 		inflationRewards: inflationRewards,
 		SlotInfos:        slotInfos,
@@ -141,6 +145,12 @@ func (s *MockServer) SetOpt(opt MockOpt, key any, value any) {
 			s.validatorInfos = make(map[string]MockValidatorInfo)
 		}
 		s.validatorInfos[key.(string)] = value.(MockValidatorInfo)
+	case EasyErrorsOpt:
+		if s.easyErrors == nil {
+			s.easyErrors = make(map[string]*Error)
+		}
+		err := value.(Error)
+		s.easyErrors[key.(string)] = &err
 	}
 }
 
@@ -150,9 +160,15 @@ func (s *MockServer) GetValidatorInfo(nodekey string) MockValidatorInfo {
 	return s.validatorInfos[nodekey]
 }
 
-func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
+func (s *MockServer) getResult(method string, params ...any) (any, *Error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	if s.easyErrors != nil {
+		if err, ok := s.easyErrors[method]; ok && err != nil {
+			return nil, err
+		}
+	}
 
 	if method == "getBalance" && s.balances != nil {
 		address := params[0].(string)
@@ -184,10 +200,10 @@ func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
 		slotInfo, ok := s.SlotInfos[slot]
 		if !ok {
 			s.logger.Warnf("no slot info for slot %d", slot)
-			return nil, &RPCError{Code: BlockCleanedUpCode, Message: "Block cleaned up."}
+			return nil, &Error{Code: BlockCleanedUpCode, Message: "Block cleaned up."}
 		}
 		if slotInfo.Block == nil {
-			return nil, &RPCError{Code: SlotSkippedCode, Message: "Slot skipped."}
+			return nil, &Error{Code: SlotSkippedCode, Message: "Slot skipped."}
 		}
 		var (
 			transactions []map[string]any
@@ -265,7 +281,7 @@ func (s *MockServer) getResult(method string, params ...any) (any, *RPCError) {
 	// default is use easy results:
 	result, ok := s.easyResults[method]
 	if !ok {
-		return nil, &RPCError{Code: -32601, Message: "Method not found"}
+		return nil, &Error{Code: -32601, Message: "Method not found"}
 	}
 	return result, nil
 }
@@ -301,12 +317,13 @@ func (s *MockServer) handleRPCRequest(w http.ResponseWriter, r *http.Request) {
 func NewMockClient(
 	t *testing.T,
 	easyResults map[string]any,
+	easyErrors map[string]*Error,
 	balances map[string]int,
 	inflationRewards map[string]int,
 	slotInfos map[int]MockSlotInfo,
 	validatorInfos map[string]MockValidatorInfo,
 ) (*MockServer, *Client) {
-	server, err := NewMockServer(easyResults, balances, inflationRewards, slotInfos, validatorInfos)
+	server, err := NewMockServer(easyResults, easyErrors, balances, inflationRewards, slotInfos, validatorInfos)
 	if err != nil {
 		t.Fatalf("failed to create mock server: %v", err)
 	}

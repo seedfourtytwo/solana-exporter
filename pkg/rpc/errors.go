@@ -33,7 +33,7 @@ type (
 	}
 )
 
-func UnpackRpcErrorData[T any](rpcErr *RPCError, formatted T) error {
+func UnpackRpcErrorData[T any](rpcErr *Error, formatted T) error {
 	bytesData, err := json.Marshal(rpcErr.Data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal %s rpc-error data: %w", rpcErr.Method, err)

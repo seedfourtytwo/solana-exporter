@@ -7,15 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMethodTester(t *testing.T, method string, result any) (*MockServer, *Client) {
+func newMethodTester(t *testing.T, method string, result any, err *Error) (*MockServer, *Client) {
 	t.Helper()
-	return NewMockClient(t, map[string]any{method: result}, nil, nil, nil, nil)
+	errs := make(map[string]*Error)
+	if err != nil {
+		errs[method] = err
+	}
+	return NewMockClient(t, map[string]any{method: result}, errs, nil, nil, nil, nil)
 }
 
 func TestClient_GetBalance(t *testing.T) {
 	_, client := newMethodTester(t,
 		"getBalance",
 		map[string]any{"context": map[string]int{"slot": 1}, "value": 5 * LamportsInSol},
+		nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -36,6 +41,7 @@ func TestClient_GetBlock(t *testing.T) {
 				{"transaction": {"message": {"accountKeys": {"aaa", "bbb", "ccc"}}}},
 			},
 		},
+		nil,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -74,6 +80,7 @@ func TestClient_GetBlockProduction(t *testing.T) {
 				},
 			},
 		},
+		nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -100,6 +107,7 @@ func TestClient_GetEpochInfo(t *testing.T) {
 			"slotsInEpoch":     8_192,
 			"transactionCount": 22_661_093,
 		},
+		nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -120,7 +128,7 @@ func TestClient_GetEpochInfo(t *testing.T) {
 }
 
 func TestClient_GetFirstAvailableBlock(t *testing.T) {
-	_, client := newMethodTester(t, "getFirstAvailableBlock", 250_000)
+	_, client := newMethodTester(t, "getFirstAvailableBlock", 250_000, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -130,13 +138,47 @@ func TestClient_GetFirstAvailableBlock(t *testing.T) {
 }
 
 func TestClient_GetHealth(t *testing.T) {
-	_, client := newMethodTester(t, "getHealth", "ok")
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// using example responses in the docs: https://solana.com/docs/rpc/http/gethealth
+	t.Run("healthy-node", func(t *testing.T) {
+		_, client := newMethodTester(t, "getHealth", "ok", nil)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-	health, err := client.GetHealth(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, "ok", health)
+		health, err := client.GetHealth(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, "ok", health)
+	})
+
+	t.Run("unhealthy-node", func(t *testing.T) {
+		unhealthyErr := Error{
+			Code:    NodeUnhealthyCode,
+			Message: "Node is unhealthy",
+			Method:  "getHealth",
+		}
+
+		t.Run("generic", func(t *testing.T) {
+			_, client := newMethodTester(t, "getHealth", nil, &unhealthyErr)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			health, err := client.GetHealth(ctx)
+			assert.Equal(t, health, "")
+			assert.Equal(t, &unhealthyErr, err)
+		})
+
+		unhealthyErr.Data = map[string]any{"numSlotsBehind": float64(42)}
+
+		t.Run("specific", func(t *testing.T) {
+			_, client := newMethodTester(t, "getHealth", nil, &unhealthyErr)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			health, err := client.GetHealth(ctx)
+			assert.Equal(t, health, "")
+			assert.Equal(t, &unhealthyErr, err)
+		})
+
+	})
 }
 
 func TestClient_GetInflationReward(t *testing.T) {
@@ -150,6 +192,7 @@ func TestClient_GetInflationReward(t *testing.T) {
 				"postBalance":   499_999_442_500,
 			},
 		},
+		nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -168,7 +211,7 @@ func TestClient_GetLeaderSchedule(t *testing.T) {
 		"bbb": {5, 6, 7, 8, 9},
 		"ccc": {10, 11, 12, 13, 14},
 	}
-	_, client := newMethodTester(t, "getLeaderSchedule", expectedSchedule)
+	_, client := newMethodTester(t, "getLeaderSchedule", expectedSchedule, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -178,7 +221,7 @@ func TestClient_GetLeaderSchedule(t *testing.T) {
 }
 
 func TestClient_GetMinimumLedgerSlot(t *testing.T) {
-	_, client := newMethodTester(t, "minimumLedgerSlot", 250)
+	_, client := newMethodTester(t, "minimumLedgerSlot", 250, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -188,7 +231,7 @@ func TestClient_GetMinimumLedgerSlot(t *testing.T) {
 }
 
 func TestClient_GetSlot(t *testing.T) {
-	_, client := newMethodTester(t, "getSlot", 1234)
+	_, client := newMethodTester(t, "getSlot", 1234, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -199,7 +242,7 @@ func TestClient_GetSlot(t *testing.T) {
 
 func TestClient_GetVersion(t *testing.T) {
 	expectedResult := map[string]any{"feature-set": 2891131721, "solana-core": "1.16.7"}
-	_, client := newMethodTester(t, "getVersion", expectedResult)
+	_, client := newMethodTester(t, "getVersion", expectedResult, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -225,6 +268,7 @@ func TestClient_GetVoteAccounts(t *testing.T) {
 			},
 			"delinquent": nil,
 		},
+		nil,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -247,9 +291,10 @@ func TestClient_GetVoteAccounts(t *testing.T) {
 }
 
 func TestClient_GetIdentity(t *testing.T) {
-	_, client := newMethodTester(t, "getIdentity", map[string]string{
-		"identity": "random2r1F4iWqVcb8M1DbAjQuFpebkQuW2DJtestkey",
-	})
+	_, client := newMethodTester(t,
+		"getIdentity", map[string]string{"identity": "random2r1F4iWqVcb8M1DbAjQuFpebkQuW2DJtestkey"},
+		nil,
+	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
