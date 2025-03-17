@@ -1,3 +1,18 @@
+# v3.0.1
+
+## Key Changes
+
+Fixed the unpacking bug that caused the exporter to crash when receiving the target node was unhealthy.
+
+## What's Changed
+
+* Fixed the unpacking bug that caused the exporter to crash when receiving the target node was unhealthy (**[@Managarmrr](https://github.com/Managarmrr)**).
+* Added tests for the collection of `solana_node_is_healthy` and `solana_node_num_slots_behind` (**[@johnstonematt](https://github.com/johnstonematt)**)
+
+## New Contributors
+
+* **[@Managarmrr](https://github.com/Managarmrr)** made their first contribution in **[#92](https://github.com/asymmetric-research/solana-exporter/pull/92)**.
+
 # v3.0.0
 
 ## Key Changes
