@@ -4,6 +4,51 @@
 The Solana Exporter exports basic monitoring data from a Solana node, using the 
 [Solana RPC API](https://solana.com/docs/rpc).
 
+## Changes I made so far from the original project https://github.com/asymmetric-research/solana-exporter
+
+### Validator Credits Tracking (2024)
+Added comprehensive validator credits tracking with the following improvements:
+
+1. **New Metrics**:
+   - `solana_validator_current_epoch_credits`: Tracks credits earned in the current epoch
+   - `solana_validator_total_credits`: Tracks total accumulated credits since genesis
+
+2. **Configuration Changes**:
+   - Replaced `-nodekey` with `-validator-identity` for clearer parameter naming
+   - Added `-vote-account-pubkey` parameter for precise vote account tracking
+   - Updated systemd service configuration for better reliability
+
+3. **Accuracy Improvements**:
+   - Fixed credit calculation to accurately reflect current epoch earnings
+   - Added proper labeling with validator identity
+   - Implemented real-time credit tracking with minimal latency
+
+4. **Example Service Configuration**:
+```bash
+[Unit]
+Description=Solana Exporter for Prometheus
+After=network.target
+
+[Service]
+User=sol
+WorkingDirectory=/home/sol
+ExecStart=/home/sol/validators/monitoring/solana-exporter/solana-exporter \
+    -rpc-url http://127.0.0.1:8899 \
+    -listen-address 0.0.0.0:9100 \
+    -validator-identity <VALIDATOR_IDENTITY> \
+    -vote-account-pubkey <VOTE_ACCOUNT_PUBKEY>
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+5. **Grafana Integration**:
+   - Added support for real-time credit monitoring
+   - Recommended queries for tracking current epoch and total credits
+   - Support for credit earning rate calculations
+
 ### Example Usage
 
 To use the Solana Exporter, simply run the program with the desired 
