@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"net/http"
 
 	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
