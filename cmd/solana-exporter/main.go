@@ -16,9 +16,6 @@ func main() {
 	logger := slog.Get()
 	ctx := context.Background()
 
-	validatorIdentity := flag.String("validator-identity", "", "Validator identity to monitor")
-	voteAccountPubkey := flag.String("vote-account-pubkey", "", "Vote account public key to monitor")
-
 	config, err := NewExporterConfigFromCLI(ctx)
 	if err != nil {
 		logger.Fatal(err)
