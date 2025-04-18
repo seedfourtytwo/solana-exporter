@@ -337,8 +337,8 @@ func (c *SolanaCollector) collectValidatorCredits(ctx context.Context, ch chan<-
 		return
 	}
 
-	ch <- c.ValidatorCurrentEpochCredits.NewMetric(float64(credits.CurrentEpochCredits), c.config.ValidatorIdentity)
-	ch <- c.ValidatorTotalCredits.NewMetric(float64(credits.TotalCredits), c.config.ValidatorIdentity)
+	ch <- c.ValidatorCurrentEpochCredits.MustNewConstMetric(float64(credits.CurrentEpochCredits), c.config.ValidatorIdentity)
+	ch <- c.ValidatorTotalCredits.MustNewConstMetric(float64(credits.TotalCredits), c.config.ValidatorIdentity)
 }
 
 func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheus.Metric) {
