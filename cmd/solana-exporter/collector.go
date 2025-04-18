@@ -155,6 +155,8 @@ func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCo
 }
 
 func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
+	c.logger.Info("Describing metrics...")
+	
 	ch <- c.NodeVersion.Desc
 	ch <- c.NodeIdentity.Desc
 	ch <- c.ValidatorActiveStake.Desc
@@ -171,8 +173,12 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.NodeMinimumLedgerSlot.Desc
 	ch <- c.NodeFirstAvailableBlock.Desc
 	ch <- c.NodeIsActive.Desc
+	
+	c.logger.Info("Registering validator credits metrics...")
 	ch <- c.ValidatorCurrentEpochCredits.Desc
 	ch <- c.ValidatorTotalCredits.Desc
+	
+	c.logger.Info("All metrics described")
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -323,22 +329,26 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 }
 
 func (c *SolanaCollector) collectValidatorCredits(ctx context.Context, ch chan<- prometheus.Metric) {
-	if c.config.LightMode {
-		c.logger.Debug("Skipping validator credits collection in light mode.")
-		return
-	}
+	c.logger.Info("Starting validator credits collection...")
+	c.logger.Infof("Light mode: %v", c.config.LightMode)
+	c.logger.Infof("Validator identity: %s", c.config.ValidatorIdentity)
 
-	c.logger.Info("Collecting validator credits...")
 	credits, err := c.rpcClient.GetValidatorCredits(c.config.ValidatorIdentity)
 	if err != nil {
-		c.logger.Errorf("failed to get validator credits: %v", err)
+		c.logger.Errorf("Failed to get validator credits: %v", err)
 		ch <- c.ValidatorCurrentEpochCredits.NewInvalidMetric(err)
 		ch <- c.ValidatorTotalCredits.NewInvalidMetric(err)
 		return
 	}
 
+	c.logger.Infof("Successfully retrieved credits - Current Epoch: %d, Total: %d", 
+		credits.CurrentEpochCredits, 
+		credits.TotalCredits)
+
 	ch <- c.ValidatorCurrentEpochCredits.MustNewConstMetric(float64(credits.CurrentEpochCredits), c.config.ValidatorIdentity)
 	ch <- c.ValidatorTotalCredits.MustNewConstMetric(float64(credits.TotalCredits), c.config.ValidatorIdentity)
+	
+	c.logger.Info("Validator credits metrics emitted successfully")
 }
 
 func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -369,13 +379,28 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	c.logger.Info("Collecting health metrics...")
 	c.collectHealth(ctx, ch)
+	
+	c.logger.Info("Collecting minimum ledger slot...")
 	c.collectMinimumLedgerSlot(ctx, ch)
+	
+	c.logger.Info("Collecting first available block...")
 	c.collectFirstAvailableBlock(ctx, ch)
+	
+	c.logger.Info("Collecting vote accounts...")
 	c.collectVoteAccounts(ctx, ch)
+	
+	c.logger.Info("Collecting version...")
 	c.collectVersion(ctx, ch)
+	
+	c.logger.Info("Collecting identity...")
 	c.collectIdentity(ctx, ch)
+	
+	c.logger.Info("Collecting balances...")
 	c.collectBalances(ctx, ch)
+	
+	c.logger.Info("Collecting validator credits...")
 	c.collectValidatorCredits(ctx, ch)
 
 	c.logger.Info("=========== END COLLECTION ===========")
