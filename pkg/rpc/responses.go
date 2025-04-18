@@ -128,10 +128,10 @@ func (v *VoteAccount) GetValidatorCredits() (int64, int64) {
 	}
 
 	// lastEntry[0] = epoch
-	// lastEntry[1] = credits
-	// lastEntry[2] = previous_credits
-	currentEpochCredits := lastEntry[1]
-	totalCredits := v.Credits
+	// lastEntry[1] = credits (current total)
+	// lastEntry[2] = previous_credits (total from previous epoch)
+	currentEpochCredits := lastEntry[1] - lastEntry[2] // Credits earned in current epoch
+	totalCredits := lastEntry[1] // Total credits across all epochs
 
 	return currentEpochCredits, totalCredits
 }
