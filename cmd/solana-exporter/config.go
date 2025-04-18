@@ -28,6 +28,7 @@ type (
 		ActiveIdentity                   string
 		EpochCleanupTime                 time.Duration
 		ValidatorIdentity                string
+		VoteAccountPubkey                string
 	}
 )
 
@@ -119,6 +120,7 @@ func NewExporterConfig(
 		ActiveIdentity:                   activeIdentity,
 		EpochCleanupTime:                 epochCleanupTime,
 		ValidatorIdentity:                validatorIdentity,
+		VoteAccountPubkey:                "",
 	}
 	return &config, nil
 }
@@ -138,6 +140,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		activeIdentity                   string
 		epochCleanupTime                 int
 		validatorIdentity                string
+		voteAccountPubkey                string
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -222,6 +225,12 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		"",
 		"Validator identity public key that determines if the node is considered active in the 'solana_node_is_active' metric.",
 	)
+	flag.StringVar(
+		&voteAccountPubkey,
+		"vote-account-pubkey",
+		"",
+		"Vote account public key to monitor",
+	)
 	flag.Parse()
 
 	config, err := NewExporterConfig(
@@ -243,5 +252,6 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	config.VoteAccountPubkey = voteAccountPubkey
 	return config, nil
 }
