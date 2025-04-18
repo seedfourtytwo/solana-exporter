@@ -27,6 +27,7 @@ type (
 		SlotPace                         time.Duration
 		ActiveIdentity                   string
 		EpochCleanupTime                 time.Duration
+		ValidatorIdentity                string
 	}
 )
 
@@ -53,6 +54,7 @@ func NewExporterConfig(
 	slotPace time.Duration,
 	activeIdentity string,
 	epochCleanupTime time.Duration,
+	validatorIdentity string,
 ) (*ExporterConfig, error) {
 	logger := slog.Get()
 	logger.Infow(
@@ -69,6 +71,7 @@ func NewExporterConfig(
 		"activeIdentity", activeIdentity,
 		"slotPace", slotPace,
 		"epochCleanupTime", epochCleanupTime,
+		"validatorIdentity", validatorIdentity,
 	)
 	if lightMode {
 		if comprehensiveSlotTracking {
@@ -115,6 +118,7 @@ func NewExporterConfig(
 		SlotPace:                         slotPace,
 		ActiveIdentity:                   activeIdentity,
 		EpochCleanupTime:                 epochCleanupTime,
+		ValidatorIdentity:                validatorIdentity,
 	}
 	return &config, nil
 }
@@ -133,6 +137,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		slotPace                         int
 		activeIdentity                   string
 		epochCleanupTime                 int
+		validatorIdentity                string
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -211,6 +216,12 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		"",
 		"Validator identity public key that determines if the node is considered active in the 'solana_node_is_active' metric.",
 	)
+	flag.StringVar(
+		&validatorIdentity,
+		"validator-identity",
+		"",
+		"Validator identity public key that determines if the node is considered active in the 'solana_node_is_active' metric.",
+	)
 	flag.Parse()
 
 	config, err := NewExporterConfig(
@@ -227,6 +238,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		time.Duration(slotPace)*time.Second,
 		activeIdentity,
 		time.Duration(epochCleanupTime)*time.Second,
+		validatorIdentity,
 	)
 	if err != nil {
 		return nil, err

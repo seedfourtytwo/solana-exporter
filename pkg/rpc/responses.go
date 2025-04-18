@@ -44,10 +44,7 @@ type (
 		RootSlot       int    `json:"rootSlot"`
 		VotePubkey     string `json:"votePubkey"`
 		Credits        int64  `json:"credits"`         // Current epoch credits
-		EpochCredits   []struct {
-			Epoch  int64 `json:"epoch"`
-			Credits int64 `json:"credits"`
-		} `json:"epochCredits"`   // Total credits for current epoch
+		EpochCredits   [][]int64 `json:"epochCredits"`   // Array of [epoch, credits, previous_credits]
 		EpochVoteAccount bool `json:"epochVoteAccount"` // Whether this is the current epoch's vote account
 	}
 
@@ -117,4 +114,24 @@ func (hp *HostProduction) UnmarshalJSON(data []byte) error {
 	hp.LeaderSlots = arr[0]
 	hp.BlocksProduced = arr[1]
 	return nil
+}
+
+func (v *VoteAccount) GetValidatorCredits() (int64, int64) {
+	if len(v.EpochCredits) == 0 {
+		return 0, 0
+	}
+
+	// Get the last entry in EpochCredits which represents the current epoch
+	lastEntry := v.EpochCredits[len(v.EpochCredits)-1]
+	if len(lastEntry) < 3 {
+		return 0, 0
+	}
+
+	// lastEntry[0] = epoch
+	// lastEntry[1] = credits
+	// lastEntry[2] = previous_credits
+	currentEpochCredits := lastEntry[1]
+	totalCredits := v.Credits
+
+	return currentEpochCredits, totalCredits
 }

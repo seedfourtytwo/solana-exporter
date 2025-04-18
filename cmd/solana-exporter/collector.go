@@ -327,22 +327,18 @@ func (c *SolanaCollector) collectValidatorCredits(ctx context.Context, ch chan<-
 		c.logger.Debug("Skipping validator credits collection in light mode.")
 		return
 	}
+
 	c.logger.Info("Collecting validator credits...")
-	
-	for _, nodekey := range c.config.NodeKeys {
-		credits, err := c.rpcClient.GetValidatorCredits(ctx, rpc.CommitmentConfirmed, nodekey)
-		if err != nil {
-			c.logger.Errorf("failed to get validator credits for %s: %v", nodekey, err)
-			ch <- c.ValidatorCurrentEpochCredits.NewInvalidMetric(err)
-			ch <- c.ValidatorTotalCredits.NewInvalidMetric(err)
-			continue
-		}
-		
-		ch <- c.ValidatorCurrentEpochCredits.MustNewConstMetric(float64(credits.CurrentEpochCredits), nodekey)
-		ch <- c.ValidatorTotalCredits.MustNewConstMetric(float64(credits.TotalCredits), nodekey)
+	credits, err := c.rpcClient.GetValidatorCredits(c.config.ValidatorIdentity)
+	if err != nil {
+		c.logger.Errorf("failed to get validator credits: %v", err)
+		ch <- c.ValidatorCurrentEpochCredits.NewInvalidMetric(err)
+		ch <- c.ValidatorTotalCredits.NewInvalidMetric(err)
+		return
 	}
-	
-	c.logger.Info("Validator credits collected.")
+
+	ch <- c.ValidatorCurrentEpochCredits.NewMetric(float64(credits.CurrentEpochCredits), c.config.ValidatorIdentity)
+	ch <- c.ValidatorTotalCredits.NewMetric(float64(credits.TotalCredits), c.config.ValidatorIdentity)
 }
 
 func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheus.Metric) {

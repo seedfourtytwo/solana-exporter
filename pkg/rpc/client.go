@@ -141,37 +141,24 @@ func (c *Client) GetVoteAccounts(ctx context.Context, commitment Commitment) (*V
 
 // GetValidatorCredits returns the current epoch credits and total accumulated credits for a validator
 // See API docs: https://solana.com/docs/rpc/http/getvoteaccounts
-func (c *Client) GetValidatorCredits(ctx context.Context, commitment Commitment, validatorIdentity string) (*ValidatorCredits, error) {
-	// First get vote accounts to find the current vote account for this validator
-	voteAccounts, err := c.GetVoteAccounts(ctx, commitment)
+func (c *Client) GetValidatorCredits(validatorPubkey string) (*ValidatorCredits, error) {
+	voteAccounts, err := c.GetVoteAccounts(context.Background(), CommitmentConfirmed)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vote accounts: %w", err)
 	}
 
-	// Find the current vote account for this validator
-	var currentVoteAccount *VoteAccount
+	// Find the current vote account for the validator
 	for _, account := range voteAccounts.Current {
-		if account.NodePubkey == validatorIdentity {
-			currentVoteAccount = &account
-			break
+		if account.VotePubkey == validatorPubkey {
+			currentEpochCredits, totalCredits := account.GetValidatorCredits()
+			return &ValidatorCredits{
+				CurrentEpochCredits: currentEpochCredits,
+				TotalCredits:        totalCredits,
+			}, nil
 		}
 	}
 
-	if currentVoteAccount == nil {
-		return nil, fmt.Errorf("no current vote account found for validator %s", validatorIdentity)
-	}
-
-	// Get the current epoch credits from the epochCredits array
-	var currentEpochCredits int64
-	if len(currentVoteAccount.EpochCredits) > 0 {
-		currentEpochCredits = currentVoteAccount.EpochCredits[len(currentVoteAccount.EpochCredits)-1].Credits
-	}
-
-	// Return the credits information
-	return &ValidatorCredits{
-		CurrentEpochCredits: currentEpochCredits,
-		TotalCredits:       currentVoteAccount.Credits,
-	}, nil
+	return nil, fmt.Errorf("validator %s not found in current vote accounts", validatorPubkey)
 }
 
 // GetVersion returns the current Solana version running on the node.
