@@ -161,9 +161,15 @@ func (c *Client) GetValidatorCredits(ctx context.Context, commitment Commitment,
 		return nil, fmt.Errorf("no current vote account found for validator %s", validatorIdentity)
 	}
 
+	// Get the current epoch credits from the epochCredits array
+	var currentEpochCredits int64
+	if len(currentVoteAccount.EpochCredits) > 0 {
+		currentEpochCredits = currentVoteAccount.EpochCredits[len(currentVoteAccount.EpochCredits)-1].Credits
+	}
+
 	// Return the credits information
 	return &ValidatorCredits{
-		CurrentEpochCredits: currentVoteAccount.EpochCredits,
+		CurrentEpochCredits: currentEpochCredits,
 		TotalCredits:       currentVoteAccount.Credits,
 	}, nil
 }

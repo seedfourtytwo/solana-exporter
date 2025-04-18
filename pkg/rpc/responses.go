@@ -44,7 +44,10 @@ type (
 		RootSlot       int    `json:"rootSlot"`
 		VotePubkey     string `json:"votePubkey"`
 		Credits        int64  `json:"credits"`         // Current epoch credits
-		EpochCredits   int64  `json:"epochCredits"`   // Total credits for current epoch
+		EpochCredits   []struct {
+			Epoch  int64 `json:"epoch"`
+			Credits int64 `json:"credits"`
+		} `json:"epochCredits"`   // Total credits for current epoch
 		EpochVoteAccount bool `json:"epochVoteAccount"` // Whether this is the current epoch's vote account
 	}
 
