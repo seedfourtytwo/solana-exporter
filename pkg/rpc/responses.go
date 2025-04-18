@@ -43,6 +43,9 @@ type (
 		NodePubkey     string `json:"nodePubkey"`
 		RootSlot       int    `json:"rootSlot"`
 		VotePubkey     string `json:"votePubkey"`
+		Credits        int64  `json:"credits"`         // Current epoch credits
+		EpochCredits   int64  `json:"epochCredits"`   // Total credits for current epoch
+		EpochVoteAccount bool `json:"epochVoteAccount"` // Whether this is the current epoch's vote account
 	}
 
 	VoteAccounts struct {
@@ -87,6 +90,11 @@ type (
 				AccountKeys []string `json:"accountKeys"`
 			} `json:"message"`
 		} `json:"transaction"`
+	}
+
+	ValidatorCredits struct {
+		CurrentEpochCredits int64 `json:"currentEpochCredits"`
+		TotalCredits       int64 `json:"totalCredits"`
 	}
 )
 

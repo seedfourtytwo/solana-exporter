@@ -36,11 +36,11 @@ const (
 	// LamportsInSol is the number of lamports in 1 SOL (a billion)
 	LamportsInSol = 1_000_000_000
 	// CommitmentFinalized level offers the highest level of certainty for a transaction on the Solana blockchain.
-	// A transaction is considered “Finalized” when it is included in a block that has been confirmed by a
+	// A transaction is considered "Finalized" when it is included in a block that has been confirmed by a
 	// supermajority of the stake, and at least 31 additional confirmed blocks have been built on top of it.
 	CommitmentFinalized Commitment = "finalized"
 	// CommitmentConfirmed level is reached when a transaction is included in a block that has been voted on
-	// by a supermajority (66%+) of the network’s stake.
+	// by a supermajority (66%+) of the network's stake.
 	CommitmentConfirmed Commitment = "confirmed"
 	// CommitmentProcessed level represents a transaction that has been received by the network and included in a block.
 	CommitmentProcessed Commitment = "processed"
@@ -137,6 +137,35 @@ func (c *Client) GetVoteAccounts(ctx context.Context, commitment Commitment) (*V
 		return nil, err
 	}
 	return &resp.Result, nil
+}
+
+// GetValidatorCredits returns the current epoch credits and total accumulated credits for a validator
+// See API docs: https://solana.com/docs/rpc/http/getvoteaccounts
+func (c *Client) GetValidatorCredits(ctx context.Context, commitment Commitment, validatorIdentity string) (*ValidatorCredits, error) {
+	// First get vote accounts to find the current vote account for this validator
+	voteAccounts, err := c.GetVoteAccounts(ctx, commitment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get vote accounts: %w", err)
+	}
+
+	// Find the current vote account for this validator
+	var currentVoteAccount *VoteAccount
+	for _, account := range voteAccounts.Current {
+		if account.NodePubkey == validatorIdentity {
+			currentVoteAccount = &account
+			break
+		}
+	}
+
+	if currentVoteAccount == nil {
+		return nil, fmt.Errorf("no current vote account found for validator %s", validatorIdentity)
+	}
+
+	// Return the credits information
+	return &ValidatorCredits{
+		CurrentEpochCredits: currentVoteAccount.EpochCredits,
+		TotalCredits:       currentVoteAccount.Credits,
+	}, nil
 }
 
 // GetVersion returns the current Solana version running on the node.

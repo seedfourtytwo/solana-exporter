@@ -55,6 +55,8 @@ type SolanaCollector struct {
 	NodeFirstAvailableBlock *GaugeDesc
 	NodeIdentity            *GaugeDesc
 	NodeIsActive            *GaugeDesc
+	ValidatorCurrentEpochCredits *GaugeDesc
+	ValidatorTotalCredits *GaugeDesc
 }
 
 func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCollector {
@@ -138,6 +140,16 @@ func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCo
 			fmt.Sprintf("Whether the node is active and participating in consensus (using %s pubkey)", IdentityLabel),
 			IdentityLabel,
 		),
+		ValidatorCurrentEpochCredits: NewGaugeDesc(
+			"solana_validator_current_epoch_credits",
+			"Current epoch credits for the validator",
+			NodekeyLabel,
+		),
+		ValidatorTotalCredits: NewGaugeDesc(
+			"solana_validator_total_credits",
+			"Total accumulated credits for the validator since genesis",
+			NodekeyLabel,
+		),
 	}
 	return collector
 }
@@ -159,6 +171,8 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.NodeMinimumLedgerSlot.Desc
 	ch <- c.NodeFirstAvailableBlock.Desc
 	ch <- c.NodeIsActive.Desc
+	ch <- c.ValidatorCurrentEpochCredits.Desc
+	ch <- c.ValidatorTotalCredits.Desc
 }
 
 func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
@@ -308,6 +322,29 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 	c.logger.Info("Balances collected.")
 }
 
+func (c *SolanaCollector) collectValidatorCredits(ctx context.Context, ch chan<- prometheus.Metric) {
+	if c.config.LightMode {
+		c.logger.Debug("Skipping validator credits collection in light mode.")
+		return
+	}
+	c.logger.Info("Collecting validator credits...")
+	
+	for _, nodekey := range c.config.NodeKeys {
+		credits, err := c.rpcClient.GetValidatorCredits(ctx, rpc.CommitmentConfirmed, nodekey)
+		if err != nil {
+			c.logger.Errorf("failed to get validator credits for %s: %v", nodekey, err)
+			ch <- c.ValidatorCurrentEpochCredits.NewInvalidMetric(err)
+			ch <- c.ValidatorTotalCredits.NewInvalidMetric(err)
+			continue
+		}
+		
+		ch <- c.ValidatorCurrentEpochCredits.MustNewConstMetric(float64(credits.CurrentEpochCredits), nodekey)
+		ch <- c.ValidatorTotalCredits.MustNewConstMetric(float64(credits.TotalCredits), nodekey)
+	}
+	
+	c.logger.Info("Validator credits collected.")
+}
+
 func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting health...")
 
@@ -343,6 +380,7 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.collectVersion(ctx, ch)
 	c.collectIdentity(ctx, ch)
 	c.collectBalances(ctx, ch)
+	c.collectValidatorCredits(ctx, ch)
 
 	c.logger.Info("=========== END COLLECTION ===========")
 }
