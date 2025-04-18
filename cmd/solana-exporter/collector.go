@@ -330,10 +330,37 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 
 func (c *SolanaCollector) collectValidatorCredits(ctx context.Context, ch chan<- prometheus.Metric) {
 	c.logger.Info("Starting validator credits collection...")
-	c.logger.Infof("Light mode: %v", c.config.LightMode)
 	c.logger.Infof("Validator identity: %s", c.config.ValidatorIdentity)
 
-	credits, err := c.rpcClient.GetValidatorCredits(c.config.ValidatorIdentity)
+	// First get all vote accounts
+	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		c.logger.Errorf("Failed to get vote accounts: %v", err)
+		ch <- c.ValidatorCurrentEpochCredits.NewInvalidMetric(err)
+		ch <- c.ValidatorTotalCredits.NewInvalidMetric(err)
+		return
+	}
+
+	// Find our validator's vote account
+	var ourVoteAccount *rpc.VoteAccount
+	for _, account := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
+		if account.NodePubkey == c.config.ValidatorIdentity {
+			ourVoteAccount = &account
+			break
+		}
+	}
+
+	if ourVoteAccount == nil {
+		c.logger.Errorf("Validator %s not found in vote accounts", c.config.ValidatorIdentity)
+		ch <- c.ValidatorCurrentEpochCredits.NewInvalidMetric(fmt.Errorf("validator not found in vote accounts"))
+		ch <- c.ValidatorTotalCredits.NewInvalidMetric(fmt.Errorf("validator not found in vote accounts"))
+		return
+	}
+
+	c.logger.Infof("Found vote account: %s", ourVoteAccount.VotePubkey)
+
+	// Get the credits for this vote account
+	credits, err := c.rpcClient.GetValidatorCredits(ourVoteAccount.VotePubkey)
 	if err != nil {
 		c.logger.Errorf("Failed to get validator credits: %v", err)
 		ch <- c.ValidatorCurrentEpochCredits.NewInvalidMetric(err)
