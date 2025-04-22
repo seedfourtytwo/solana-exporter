@@ -115,6 +115,50 @@ use of the `-nodekey` parameter).
 In addition to the above features, the exporter provides key metrics for monitoring Solana node health and performance. 
 See [Metrics](#metrics) below for more details.
 
+## Light Mode Enhancements
+
+### Improved Light Mode to Minimize Validator Resource Usage
+
+The exporter's `-light-mode` flag has been significantly enhanced to eliminate all metric overlap between light mode and regular mode. This reduces the resource demands on validators by eliminating duplicate metrics that can be obtained from any RPC node.
+
+#### Key Light Mode Improvements:
+
+1. **Complete Elimination of Cluster Metrics**: Light mode now completely excludes all `solana_cluster_*` metrics, which can be obtained from any RPC node.
+
+2. **Node-Specific Only**: In light mode, only metrics specific to the node itself are collected:
+   - `solana_node_*` metrics (health, slot height, epoch number, etc.)
+   - When using validator identity parameters: validator credits metrics
+
+3. **Compatible with Validator Credits**: Light mode works with `-validator-identity` and `-vote-account-pubkey` parameters to track validator credits while still minimizing resource usage.
+
+#### Available Metrics in Light Mode:
+
+| Metric                             | Description                                                        |
+|------------------------------------|--------------------------------------------------------------------|
+| solana_node_epoch_number           | The current epoch number                                           |
+| solana_node_first_available_block  | Lowest confirmed block not purged from ledger                      |
+| solana_node_identity               | Node identity                                                      |
+| solana_node_is_healthy             | Node health status                                                 |
+| solana_node_minimum_ledger_slot    | Lowest slot in the node's ledger                                   |
+| solana_node_num_slots_behind       | Slots behind the latest cluster slot                               |
+| solana_node_slot_height            | Current slot number                                                |
+| solana_validator_current_epoch_credits* | Current epoch credits (with validator identity params)        |
+| solana_validator_total_credits*    | Total accumulated credits (with validator identity params)         |
+
+*Only available when using `-validator-identity` and `-vote-account-pubkey`
+
+#### Example Light Mode Usage:
+
+```bash
+solana-exporter \
+  -rpc-url http://localhost:8899 \
+  -light-mode \
+  -validator-identity <VALIDATOR_IDENTITY> \
+  -vote-account-pubkey <VOTE_ACCOUNT_PUBKEY>
+```
+
+This configuration provides essential validator monitoring with minimal RPC load.
+
 ## Installation
 ### Build
 
