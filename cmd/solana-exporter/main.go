@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/asymmetric-research/solana-exporter/pkg/rpc"
-	"github.com/asymmetric-research/solana-exporter/pkg/slog"
+	"github.com/seedfourtytwo/solana-exporter/pkg/rpc"
+	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )

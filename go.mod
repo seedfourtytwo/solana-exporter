@@ -1,4 +1,4 @@
-module github.com/asymmetric-research/solana-exporter
+module github.com/seedfourtytwo/solana-exporter
 
 go 1.22
 

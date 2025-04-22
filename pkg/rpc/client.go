@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"slices"
 	"time"
 
-	"github.com/asymmetric-research/solana-exporter/pkg/slog"
+	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
 	"go.uber.org/zap"
 )
 

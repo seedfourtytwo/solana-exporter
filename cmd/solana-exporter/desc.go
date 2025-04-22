@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/asymmetric-research/solana-exporter/pkg/slog"
+	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 type GaugeDesc struct {

@@ -1,7 +1,7 @@
 package rpc
 
 import (
-	"github.com/asymmetric-research/solana-exporter/pkg/slog"
+	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
 	"os"
 	"testing"
 )
