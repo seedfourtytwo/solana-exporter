@@ -157,7 +157,7 @@ func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCo
 func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.logger.Info("Describing metrics...")
 	
-	// These metrics are always collected, even in light mode
+	// These metrics are always collected, even in light mode - node-specific metrics only
 	ch <- c.NodeVersion.Desc
 	ch <- c.NodeIdentity.Desc
 	ch <- c.NodeIsHealthy.Desc
@@ -168,13 +168,16 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	
 	// These metrics are only collected in regular mode
 	if !c.config.LightMode {
+		// Validator-specific metrics
 		ch <- c.ValidatorActiveStake.Desc
-		ch <- c.ClusterActiveStake.Desc
 		ch <- c.ValidatorLastVote.Desc
-		ch <- c.ClusterLastVote.Desc
 		ch <- c.ValidatorRootSlot.Desc
-		ch <- c.ClusterRootSlot.Desc
 		ch <- c.ValidatorDelinquent.Desc
+		
+		// Cluster-wide metrics
+		ch <- c.ClusterActiveStake.Desc
+		ch <- c.ClusterLastVote.Desc
+		ch <- c.ClusterRootSlot.Desc
 		ch <- c.ClusterValidatorCount.Desc
 		ch <- c.AccountBalances.Desc
 	}

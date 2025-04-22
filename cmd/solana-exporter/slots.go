@@ -137,20 +137,32 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 	}
 	// register
 	logger.Info("Registering slot watcher metrics:")
-	for _, collector := range []prometheus.Collector{
-		watcher.TotalTransactionsMetric,
+	
+	// Create a list of collectors to register based on light mode
+	var collectorsToRegister []prometheus.Collector
+	
+	// Always register these core metrics regardless of mode
+	collectorsToRegister = append(collectorsToRegister, 
 		watcher.SlotHeightMetric,
-		watcher.EpochNumberMetric,
-		watcher.EpochFirstSlotMetric,
-		watcher.EpochLastSlotMetric,
-		watcher.LeaderSlotsMetric,
-		watcher.LeaderSlotsByEpochMetric,
-		watcher.ClusterSlotsByEpochMetric,
-		watcher.InflationRewardsMetric,
-		watcher.FeeRewardsMetric,
-		watcher.BlockSizeMetric,
-		watcher.BlockHeightMetric,
-	} {
+		watcher.EpochNumberMetric)
+	
+	// Register additional metrics only in regular mode
+	if !config.LightMode {
+		collectorsToRegister = append(collectorsToRegister,
+			watcher.TotalTransactionsMetric,
+			watcher.EpochFirstSlotMetric,
+			watcher.EpochLastSlotMetric,
+			watcher.LeaderSlotsMetric,
+			watcher.LeaderSlotsByEpochMetric,
+			watcher.ClusterSlotsByEpochMetric,
+			watcher.InflationRewardsMetric,
+			watcher.FeeRewardsMetric,
+			watcher.BlockSizeMetric,
+			watcher.BlockHeightMetric)
+	}
+	
+	// Register the selected collectors
+	for _, collector := range collectorsToRegister {
 		if err := prometheus.Register(collector); err != nil {
 			var (
 				alreadyRegisteredErr *prometheus.AlreadyRegisteredError
