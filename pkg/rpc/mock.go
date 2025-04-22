@@ -3,12 +3,9 @@ package rpc
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"math/rand"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"testing"
 	"time"
