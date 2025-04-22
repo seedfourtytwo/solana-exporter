@@ -126,6 +126,8 @@ The following metrics were removed (**[@johnstonematt](https://github.com/johnst
 
 ### Added
 
+* Added `solana_validator_commission` metric to track validator commission percentage rates (0-100)
+
 ### Changed
 
 * Improved light mode to completely eliminate cluster metrics and reduce validator load

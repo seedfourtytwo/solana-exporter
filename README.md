@@ -235,6 +235,7 @@ The tables below describes all the metrics collected by the `solana-exporter`:
 | `solana_validator_block_size`                  | Number of transactions per block.                                                                                     | `nodekey`, `transaction_type` |
 | `solana_node_block_height`                     | The current block height of the node.                                                                                 | N/A                           |
 | `solana_node_is_active`                        | Whether the node is active and participating in consensus.                                                            | `identity`                    |
+| `solana_validator_commission`                  | Validator commission percentage rate (0-100).                                                                         | `nodekey`                     |
 
 #### Vote Account Metrics
 
