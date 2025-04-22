@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 )
 
 type GaugeDesc struct {
