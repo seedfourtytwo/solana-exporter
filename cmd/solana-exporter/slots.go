@@ -193,9 +193,15 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 			}
 
 			c.logger.Infof("Current slot: %v", epochInfo.AbsoluteSlot)
-			c.TotalTransactionsMetric.Set(float64(epochInfo.TransactionCount))
+			// These metrics are essential even in light mode
 			c.SlotHeightMetric.Set(float64(epochInfo.AbsoluteSlot))
-			c.BlockHeightMetric.Set(float64(epochInfo.BlockHeight))
+			c.EpochNumberMetric.Set(float64(epochInfo.Epoch))
+			
+			// In light mode, skip transaction count and block height metrics
+			if !c.config.LightMode {
+				c.TotalTransactionsMetric.Set(float64(epochInfo.TransactionCount))
+				c.BlockHeightMetric.Set(float64(epochInfo.BlockHeight))
+			}
 
 			// if we get here, then the tracking numbers are set, so this is a "normal" run.
 			// start by checking if we have progressed since last run:
@@ -209,7 +215,14 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 			}
 
 			// update block production metrics up until the current slot:
-			c.moveSlotWatermark(ctx, epochInfo.AbsoluteSlot)
+			// Only move the slot watermark in light mode if we need to for epoch tracking
+			// In regular mode, we move it for all metrics
+			if !c.config.LightMode || epochInfo.Epoch > c.currentEpoch {
+				c.moveSlotWatermark(ctx, epochInfo.AbsoluteSlot)
+			} else if c.config.LightMode {
+				// In light mode, just update the watermark without collecting metrics
+				c.slotWatermark = epochInfo.AbsoluteSlot
+			}
 		}
 	}
 }
@@ -256,16 +269,22 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	// emit epoch bounds:
 	c.logger.Infof("Emitting epoch bounds: %v (slots %v -> %v)", c.currentEpoch, c.firstSlot, c.lastSlot)
 	c.EpochNumberMetric.Set(float64(c.currentEpoch))
-	c.EpochFirstSlotMetric.Set(float64(c.firstSlot))
-	c.EpochLastSlotMetric.Set(float64(c.lastSlot))
-
-	// update leader schedule:
-	c.logger.Infof("Updating leader schedule for epoch %v ...", c.currentEpoch)
-	leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, c.config.NodeKeys, epoch.AbsoluteSlot, c.firstSlot)
-	if err != nil {
-		c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
+	
+	// These metrics are not essential in light mode
+	if !c.config.LightMode {
+		c.EpochFirstSlotMetric.Set(float64(c.firstSlot))
+		c.EpochLastSlotMetric.Set(float64(c.lastSlot))
 	}
-	c.leaderSchedule = leaderSchedule
+
+	// update leader schedule only in regular mode
+	if !c.config.LightMode {
+		c.logger.Infof("Updating leader schedule for epoch %v ...", c.currentEpoch)
+		leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, c.config.NodeKeys, epoch.AbsoluteSlot, c.firstSlot)
+		if err != nil {
+			c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
+		}
+		c.leaderSchedule = leaderSchedule
+	}
 }
 
 // cleanEpoch deletes old epoch-labelled metrics which are no longer being updated due to an epoch change.
@@ -306,15 +325,20 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 // remaining slots in the "current" epoch before we start tracking the new one.
 func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo) {
 	c.logger.Infof("Closing current epoch %v, moving into epoch %v", c.currentEpoch, newEpoch.Epoch)
-	// fetch inflation rewards for epoch we about to close:
-	if len(c.config.VoteKeys) > 0 {
-		if err := c.fetchAndEmitInflationRewards(ctx, c.currentEpoch); err != nil {
-			c.logger.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
+	
+	// In light mode, we skip most of these operations
+	if !c.config.LightMode {
+		// fetch inflation rewards for epoch we about to close:
+		if len(c.config.VoteKeys) > 0 {
+			if err := c.fetchAndEmitInflationRewards(ctx, c.currentEpoch); err != nil {
+				c.logger.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
+			}
 		}
-	}
 
-	c.moveSlotWatermark(ctx, c.lastSlot)
-	go c.cleanEpoch(ctx, c.currentEpoch)
+		c.moveSlotWatermark(ctx, c.lastSlot)
+		go c.cleanEpoch(ctx, c.currentEpoch)
+	}
+	
 	c.trackEpoch(ctx, newEpoch)
 }
 

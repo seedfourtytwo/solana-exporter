@@ -157,26 +157,35 @@ func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCo
 func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.logger.Info("Describing metrics...")
 	
+	// These metrics are always collected, even in light mode
 	ch <- c.NodeVersion.Desc
 	ch <- c.NodeIdentity.Desc
-	ch <- c.ValidatorActiveStake.Desc
-	ch <- c.ClusterActiveStake.Desc
-	ch <- c.ValidatorLastVote.Desc
-	ch <- c.ClusterLastVote.Desc
-	ch <- c.ValidatorRootSlot.Desc
-	ch <- c.ClusterRootSlot.Desc
-	ch <- c.ValidatorDelinquent.Desc
-	ch <- c.ClusterValidatorCount.Desc
-	ch <- c.AccountBalances.Desc
 	ch <- c.NodeIsHealthy.Desc
 	ch <- c.NodeNumSlotsBehind.Desc
 	ch <- c.NodeMinimumLedgerSlot.Desc
 	ch <- c.NodeFirstAvailableBlock.Desc
 	ch <- c.NodeIsActive.Desc
 	
-	c.logger.Info("Registering validator credits metrics...")
-	ch <- c.ValidatorCurrentEpochCredits.Desc
-	ch <- c.ValidatorTotalCredits.Desc
+	// These metrics are only collected in regular mode
+	if !c.config.LightMode {
+		ch <- c.ValidatorActiveStake.Desc
+		ch <- c.ClusterActiveStake.Desc
+		ch <- c.ValidatorLastVote.Desc
+		ch <- c.ClusterLastVote.Desc
+		ch <- c.ValidatorRootSlot.Desc
+		ch <- c.ClusterRootSlot.Desc
+		ch <- c.ValidatorDelinquent.Desc
+		ch <- c.ClusterValidatorCount.Desc
+		ch <- c.AccountBalances.Desc
+	}
+	
+	// Only register validator credits metrics if we're not in light mode 
+	// or we have a specific validator identity set
+	if !c.config.LightMode || (c.config.ValidatorIdentity != "" && c.config.VoteAccountPubkey != "") {
+		c.logger.Info("Registering validator credits metrics...")
+		ch <- c.ValidatorCurrentEpochCredits.Desc
+		ch <- c.ValidatorTotalCredits.Desc
+	}
 	
 	c.logger.Info("All metrics described")
 }
@@ -391,14 +400,17 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting health metrics...")
 	c.collectHealth(ctx, ch)
 	
+	// These are always essential metrics even in light mode
 	c.logger.Info("Collecting minimum ledger slot...")
 	c.collectMinimumLedgerSlot(ctx, ch)
 	
 	c.logger.Info("Collecting first available block...")
 	c.collectFirstAvailableBlock(ctx, ch)
 	
-	c.logger.Info("Collecting vote accounts...")
-	c.collectVoteAccounts(ctx, ch)
+	if !c.config.LightMode {
+		c.logger.Info("Collecting vote accounts...")
+		c.collectVoteAccounts(ctx, ch)
+	}
 	
 	c.logger.Info("Collecting version...")
 	c.collectVersion(ctx, ch)
@@ -409,8 +421,11 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting balances...")
 	c.collectBalances(ctx, ch)
 	
-	c.logger.Info("Collecting validator credits...")
-	c.collectValidatorCredits(ctx, ch)
+	// Only collect validator credits in light mode if we have a specific validator identity set
+	if !c.config.LightMode || (c.config.ValidatorIdentity != "" && c.config.VoteAccountPubkey != "") {
+		c.logger.Info("Collecting validator credits...")
+		c.collectValidatorCredits(ctx, ch)
+	}
 
 	c.logger.Info("=========== END COLLECTION ===========")
 }
