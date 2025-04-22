@@ -46,6 +46,7 @@ type (
 		Credits        int64  `json:"credits"`         // Current epoch credits
 		EpochCredits   [][]int64 `json:"epochCredits"`   // Array of [epoch, credits, previous_credits]
 		EpochVoteAccount bool `json:"epochVoteAccount"` // Whether this is the current epoch's vote account
+		Commission     int   `json:"commission"`     // The validator's commission percentage
 	}
 
 	VoteAccounts struct {

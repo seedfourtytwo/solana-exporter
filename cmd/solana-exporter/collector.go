@@ -57,6 +57,7 @@ type SolanaCollector struct {
 	NodeIsActive            *GaugeDesc
 	ValidatorCurrentEpochCredits *GaugeDesc
 	ValidatorTotalCredits *GaugeDesc
+	ValidatorCommission *GaugeDesc
 }
 
 func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCollector {
@@ -150,6 +151,11 @@ func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCo
 			"Total accumulated credits for the validator since genesis",
 			NodekeyLabel,
 		),
+		ValidatorCommission: NewGaugeDesc(
+			"solana_validator_commission",
+			"Validator commission percentage rate (0-100)",
+			NodekeyLabel,
+		),
 	}
 	return collector
 }
@@ -182,12 +188,17 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 		ch <- c.AccountBalances.Desc
 	}
 	
-	// Only register validator credits metrics if we're not in light mode 
-	// or we have a specific validator identity set
-	if !c.config.LightMode || (c.config.ValidatorIdentity != "" && c.config.VoteAccountPubkey != "") {
-		c.logger.Info("Registering validator credits metrics...")
+	// These metrics are available in light mode if we have validator identity configured
+	if c.config.ValidatorIdentity != "" && c.config.VoteAccountPubkey != "" {
+		c.logger.Info("Registering validator-specific metrics...")
 		ch <- c.ValidatorCurrentEpochCredits.Desc
 		ch <- c.ValidatorTotalCredits.Desc
+		ch <- c.ValidatorCommission.Desc
+	} else if !c.config.LightMode {
+		// In regular mode, these are always available
+		ch <- c.ValidatorCurrentEpochCredits.Desc
+		ch <- c.ValidatorTotalCredits.Desc
+		ch <- c.ValidatorCommission.Desc
 	}
 	
 	c.logger.Info("All metrics described")
@@ -372,6 +383,53 @@ func (c *SolanaCollector) collectValidatorCredits(ctx context.Context, ch chan<-
 	c.logger.Info("Validator credits metrics emitted successfully")
 }
 
+func (c *SolanaCollector) collectValidatorCommission(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Info("Collecting validator commission rates...")
+	
+	// When in light mode and we have a validator identity, only collect for that validator
+	onlyCollectForConfiguredValidator := c.config.LightMode && c.config.ValidatorIdentity != "" && c.config.VoteAccountPubkey != ""
+	
+	// If in light mode with no specific validator configured, skip collection
+	if c.config.LightMode && !onlyCollectForConfiguredValidator {
+		c.logger.Debug("Skipping validator commission collection in light mode (no validator configured).")
+		return
+	}
+	
+	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		c.logger.Errorf("failed to get vote accounts for commission data: %v", err)
+		ch <- c.ValidatorCommission.NewInvalidMetric(err)
+		return
+	}
+
+	if onlyCollectForConfiguredValidator {
+		// In light mode with validator configured, find just that validator
+		foundValidator := false
+		for _, account := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
+			if account.VotePubkey == c.config.VoteAccountPubkey {
+				ch <- c.ValidatorCommission.MustNewConstMetric(float64(account.Commission), c.config.ValidatorIdentity)
+				c.logger.Infof("Validator %s commission rate is %d%%", c.config.ValidatorIdentity, account.Commission)
+				foundValidator = true
+				break
+			}
+		}
+		
+		if !foundValidator {
+			c.logger.Warnf("Could not find vote account %s to collect commission data", c.config.VoteAccountPubkey)
+		}
+	} else {
+		// In regular mode, collect for all configured nodekeys or all validators if comprehensive tracking is enabled
+		for _, account := range append(voteAccounts.Current, voteAccounts.Delinquent...) {
+			if slices.Contains(c.config.NodeKeys, account.NodePubkey) || c.config.ComprehensiveVoteAccountTracking {
+				ch <- c.ValidatorCommission.MustNewConstMetric(float64(account.Commission), account.NodePubkey)
+				c.logger.Debugf("Collected commission rate %d%% for validator %s", account.Commission, account.NodePubkey)
+			}
+		}
+	}
+	
+	c.logger.Info("Validator commission rates collected.")
+}
+
 func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting health...")
 
@@ -424,10 +482,22 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting balances...")
 	c.collectBalances(ctx, ch)
 	
-	// Only collect validator credits in light mode if we have a specific validator identity set
-	if !c.config.LightMode || (c.config.ValidatorIdentity != "" && c.config.VoteAccountPubkey != "") {
+	// Validator-specific metrics - available in both modes if identity is configured
+	if c.config.ValidatorIdentity != "" && c.config.VoteAccountPubkey != "" {
+		c.logger.Info("Collecting validator-specific metrics...")
+		
 		c.logger.Info("Collecting validator credits...")
 		c.collectValidatorCredits(ctx, ch)
+		
+		c.logger.Info("Collecting validator commission...")
+		c.collectValidatorCommission(ctx, ch)
+	} else if !c.config.LightMode {
+		// In regular mode without specific validator
+		c.logger.Info("Collecting validator credits...")
+		c.collectValidatorCredits(ctx, ch)
+		
+		c.logger.Info("Collecting validator commission...")
+		c.collectValidatorCommission(ctx, ch)
 	}
 
 	c.logger.Info("=========== END COLLECTION ===========")
