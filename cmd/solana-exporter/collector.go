@@ -335,9 +335,28 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 		return
 	}
 	c.logger.Info("Collecting balances...")
-	balances, err := FetchBalances(
-		ctx, c.rpcClient, CombineUnique(c.config.BalanceAddresses, c.config.NodeKeys, c.config.VoteKeys),
-	)
+	
+	// Combine all addresses to track: explicitly provided balance addresses, node keys, vote keys
+	// This allows tracking balances of identity (nodekey) and vote account addresses
+	addressesToTrack := CombineUnique(c.config.BalanceAddresses, c.config.NodeKeys, c.config.VoteKeys)
+	
+	// Add validator identity if provided
+	if c.config.ValidatorIdentity != "" {
+		addressesToTrack = append(addressesToTrack, c.config.ValidatorIdentity)
+	}
+	
+	// Add vote account if provided
+	if c.config.VoteAccountPubkey != "" {
+		addressesToTrack = append(addressesToTrack, c.config.VoteAccountPubkey)
+	}
+	
+	if len(addressesToTrack) == 0 {
+		c.logger.Info("No addresses to track balances for, skipping balance collection.")
+		return
+	}
+	
+	c.logger.Infof("Fetching balances for %d addresses", len(addressesToTrack))
+	balances, err := FetchBalances(ctx, c.rpcClient, addressesToTrack)
 	if err != nil {
 		c.logger.Errorf("failed to get balances: %v", err)
 		ch <- c.AccountBalances.NewInvalidMetric(err)
@@ -347,7 +366,7 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 	for address, balance := range balances {
 		ch <- c.AccountBalances.MustNewConstMetric(balance, address)
 	}
-	c.logger.Info("Balances collected.")
+	c.logger.Infof("Balances collected for %d addresses", len(balances))
 }
 
 func (c *SolanaCollector) collectValidatorCredits(ctx context.Context, ch chan<- prometheus.Metric) {

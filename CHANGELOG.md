@@ -127,12 +127,16 @@ The following metrics were removed (**[@johnstonematt](https://github.com/johnst
 ### Added
 
 * Added `solana_validator_commission` metric to track validator commission percentage rates (0-100)
+* Added metric collections for credits earned per Epoch and lifetime
+* Enhanced balance tracking to automatically include validator identity and vote account addresses
+
 
 ### Changed
 
 * Improved light mode to completely eliminate cluster metrics and reduce validator load
 * Light mode now only exports node-specific metrics and validator credits (when identity is provided)
-* Ensured no metric overlap between light mode and regular mode
+* Removed metric overlap between light mode and regular mode
+* Enhanced balance tracking to provide more detailed logging and validation
 
 ### Deprecated
 
