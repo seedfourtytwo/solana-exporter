@@ -39,10 +39,8 @@ func main() {
 		logger.Infof("Starting fast metrics collection with interval: %v", config.FastMetricsInterval)
 		collector.StartFastMetricsCollection(config.FastMetricsInterval)
 		
-		// Force an immediate collection to ensure metrics are available on first scrape
-		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
-		collector.collectVoteAndRootDistance(ctx, collector.fastMetricsCh)
-		cancel()
+		// Let the fast collection process start up
+		time.Sleep(500 * time.Millisecond)
 		
 		defer collector.StopFastMetricsCollection()
 	}

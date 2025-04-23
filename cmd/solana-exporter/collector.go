@@ -173,7 +173,7 @@ func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCo
 			"Gap between last vote and root slot (tower stability metric)",
 			IdentityLabel,
 		),
-		fastMetricsCh: make(chan prometheus.Metric, 100),
+		fastMetricsCh: nil,
 		stopFastCollection: make(chan struct{}),
 	}
 	return collector
@@ -543,17 +543,27 @@ func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch cha
 
 // Start a fast collection goroutine for time-sensitive metrics
 func (c *SolanaCollector) StartFastMetricsCollection(interval time.Duration) {
+	// Make the fast metrics channel buffered to avoid blocking
+	c.fastMetricsCh = make(chan prometheus.Metric, 100)
+	
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		
+		// Create a map to track the latest metrics by descriptor
+		latestMetrics := make(map[string]prometheus.Metric)
+		
 		for {
 			select {
 			case <-ticker.C:
+				c.logger.Debug("Running fast metrics collection cycle")
 				ctx, cancel := context.WithTimeout(context.Background(), interval/2)
 				
 				// Create a temporary channel for collecting metrics
 				tempCh := make(chan prometheus.Metric, 10)
+				
+				// Clear previous metrics before collecting new ones
+				latestMetrics = make(map[string]prometheus.Metric)
 				
 				// Collect metrics in a background goroutine to avoid deadlock
 				go func() {
@@ -561,14 +571,25 @@ func (c *SolanaCollector) StartFastMetricsCollection(interval time.Duration) {
 					c.collectVoteAndRootDistance(ctx, tempCh)
 				}()
 				
-				// Collect metrics from the temporary channel
-				var metrics []prometheus.Metric
+				// Collect metrics from the temporary channel, storing only the latest value for each metric
 				for m := range tempCh {
-					metrics = append(metrics, m)
+					desc := m.Desc().String()
+					latestMetrics[desc] = m
 				}
 				
-				// Send collected metrics to the fast metrics channel
-				for _, m := range metrics {
+				// Drain the existing fast metrics channel
+				for {
+					select {
+					case <-c.fastMetricsCh:
+						// Just drain, we'll replace with new values
+					default:
+						goto drained
+					}
+				}
+			drained:
+				
+				// Send the latest metrics to the fast metrics channel
+				for _, m := range latestMetrics {
 					select {
 					case c.fastMetricsCh <- m:
 						// Successfully sent
