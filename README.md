@@ -307,18 +307,32 @@ The new validator performance metrics provide critical insights into validator v
 The `solana_validator_vote_distance` metric measures the gap between the current slot and the last vote submitted by your validator. 
 This metric indicates how responsive your validator is in voting on new slots.
 
+**Calculation**: `current_slot - last_vote_slot`
+
 - **Lower values are better**: Ideally, this value should be small (1-5 slots)
-- **High values may indicate**: Network issues, validator falling behind, or performance problems
+- **High values indicate**: Network issues, validator falling behind, or performance problems
 - **Collection frequency**: Collected at the interval specified by `-fast-metrics-interval` (default: 3 seconds)
+
+**Interpreting Vote Distance**:
+- **1-5 slots**: Optimal performance - your validator is voting promptly
+- **6-20 slots**: Minor lag - still functional but might indicate network or resource issues
+- **>20 slots**: Significant lag - validator may be having problems keeping up with the network
 
 #### Root Distance
 
 The `solana_validator_root_distance` metric tracks the gap between the last vote and the root slot of the validator.
 This metric provides insight into tower stability and how quickly votes are being finalized.
 
-- **Normal range**: Typically follows patterns based on recent network confirmation times
+**Calculation**: `last_vote_slot - root_slot`
+
+- **Normal range**: ~20-50 slots (depends on current network confirmation times)
 - **Sudden increases**: May indicate consensus issues or network problems
 - **Collection frequency**: Collected at the interval specified by `-fast-metrics-interval` (default: 3 seconds)
+
+**Interpreting Root Distance**:
+- Root distance typically maintains a relatively consistent pattern based on network-wide confirmation rates
+- A growing root distance (increasing over time) may indicate the validator's votes aren't being included in consensus
+- A very small root distance could indicate the validator just restarted or had a tower rebuild
 
 **Note**: The `-fast-metrics-interval` flag **only** affects these two metrics. All other metrics continue to be collected on the standard Prometheus scrape interval (typically 15 seconds). This ensures you get high-frequency data for these critical metrics without increasing the load on your validator from other metric collections.
 

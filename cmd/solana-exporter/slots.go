@@ -47,6 +47,7 @@ type SlotWatcher struct {
 	FeeRewardsMetric          *prometheus.CounterVec
 	BlockSizeMetric           *prometheus.GaugeVec
 	BlockHeightMetric         prometheus.Gauge
+	AssignedLeaderSlotsMetric *prometheus.GaugeVec
 }
 
 func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
@@ -134,6 +135,16 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			Name: "solana_node_block_height",
 			Help: "The current block height of the node",
 		}),
+		AssignedLeaderSlotsMetric: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "solana_validator_assigned_leader_slots",
+				Help: fmt.Sprintf(
+					"Number of leader slots assigned in the schedule for the current epoch, grouped by %s and %s",
+					NodekeyLabel, EpochLabel,
+				),
+			},
+			[]string{NodekeyLabel, EpochLabel},
+		),
 	}
 	// register
 	logger.Info("Registering slot watcher metrics:")
@@ -158,7 +169,8 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			watcher.InflationRewardsMetric,
 			watcher.FeeRewardsMetric,
 			watcher.BlockSizeMetric,
-			watcher.BlockHeightMetric)
+			watcher.BlockHeightMetric,
+			watcher.AssignedLeaderSlotsMetric)
 	}
 	
 	// Register the selected collectors
@@ -296,6 +308,15 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 			c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
 		}
 		c.leaderSchedule = leaderSchedule
+
+		// Count and emit the total assigned leader slots for each validator
+		c.logger.Infof("Counting and emitting assigned leader slots for epoch %v", c.currentEpoch)
+		epochStr := toString(c.currentEpoch)
+		for nodekey, slots := range leaderSchedule {
+			slotCount := float64(len(slots))
+			c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", nodekey, int(slotCount), epochStr)
+			c.AssignedLeaderSlotsMetric.WithLabelValues(nodekey, epochStr).Set(slotCount)
+		}
 	}
 }
 
@@ -330,6 +351,16 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 			c.deleteMetricLabelValues(c.LeaderSlotsByEpochMetric, "leader-slots-by-epoch", nodekey, epochStr, status)
 		}
 	}
+	
+	// Clean up assigned leader slots metrics
+	for _, nodekey := range trackedNodekeys {
+		labelValues := []string{nodekey, epochStr}
+		c.logger.Debugf("deleting assigned-leader-slots with lv %v", labelValues)
+		if ok := c.AssignedLeaderSlotsMetric.DeleteLabelValues(labelValues...); !ok {
+			c.logger.Errorf("Failed to delete assigned-leader-slots with label values %v", labelValues)
+		}
+	}
+	
 	c.logger.Infof("Finished cleaning epoch %d", epoch)
 }
 

@@ -130,8 +130,8 @@ The following metrics were removed (**[@johnstonematt](https://github.com/johnst
 * Added metric collections for credits earned per Epoch and lifetime
 * Added support for tracking multiple addresses with `-balance-address` flag (can be specified multiple times)
 * Added new validator performance metrics:
-  * `solana_validator_vote_distance`: Tracks gap between current slot and last vote
-  * `solana_validator_root_distance`: Tracks gap between last vote and root slot (tower stability)
+  * `solana_validator_vote_distance`: Tracks gap between current slot and last vote (`current_slot - last_vote_slot`)
+  * `solana_validator_root_distance`: Tracks gap between last vote and root slot (`last_vote_slot - root_slot`) for tower stability monitoring
 * Added `-fast-metrics-interval` flag (default: 3 seconds) to configure higher frequency collection **exclusively** for vote distance and root distance metrics while keeping all other metrics on the standard Prometheus scrape interval
 
 
