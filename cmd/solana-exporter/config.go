@@ -29,6 +29,7 @@ type (
 		EpochCleanupTime                 time.Duration
 		ValidatorIdentity                string
 		VoteAccountPubkey                string
+		FastMetricsInterval              time.Duration
 	}
 )
 
@@ -121,6 +122,7 @@ func NewExporterConfig(
 		EpochCleanupTime:                 epochCleanupTime,
 		ValidatorIdentity:                validatorIdentity,
 		VoteAccountPubkey:                "",
+		FastMetricsInterval:              0,
 	}
 	return &config, nil
 }
@@ -141,6 +143,7 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		epochCleanupTime                 int
 		validatorIdentity                string
 		voteAccountPubkey                string
+		fastMetricsInterval              int
 	)
 	flag.IntVar(
 		&httpTimeout,
@@ -231,6 +234,12 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		"",
 		"Vote account public key to monitor",
 	)
+	flag.IntVar(
+		&fastMetricsInterval,
+		"fast-metrics-interval",
+		3,
+		"Collection interval in seconds for fast-changing metrics like vote distance and root distance",
+	)
 	flag.Parse()
 
 	config, err := NewExporterConfig(
@@ -252,6 +261,17 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	config.VoteAccountPubkey = voteAccountPubkey
+	config.FastMetricsInterval = time.Duration(fastMetricsInterval) * time.Second
+	if voteAccountPubkey != "" {
+		config.VoteAccountPubkey = voteAccountPubkey
+	} else if validatorIdentity != "" {
+		logger.Infof("Vote account not provided, trying to find it from validator identity: %s", validatorIdentity)
+		if voteAccountPubkey, err = GetVoteAccountFromIdentity(ctx, rpc.NewRPCClient(rpcUrl, time.Duration(httpTimeout)*time.Second), validatorIdentity); err != nil {
+			logger.Warnf("Failed to get vote account for identity %s: %v", validatorIdentity, err)
+		} else if voteAccountPubkey != "" {
+			logger.Infof("Found vote account %s for identity %s", voteAccountPubkey, validatorIdentity)
+			config.VoteAccountPubkey = voteAccountPubkey
+		}
+	}
 	return config, nil
 }

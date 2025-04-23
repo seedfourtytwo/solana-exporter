@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/seedfourtytwo/solana-exporter/pkg/rpc"
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
@@ -58,6 +59,12 @@ type SolanaCollector struct {
 	ValidatorCurrentEpochCredits *GaugeDesc
 	ValidatorTotalCredits *GaugeDesc
 	ValidatorCommission *GaugeDesc
+	ValidatorVoteDistance *GaugeDesc
+	ValidatorRootDistance *GaugeDesc
+	
+	// Channel for fast metrics collection
+	fastMetricsCh chan prometheus.Metric
+	stopFastCollection chan struct{}
 }
 
 func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCollector {
@@ -156,6 +163,18 @@ func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCo
 			"Validator commission percentage rate (0-100)",
 			NodekeyLabel,
 		),
+		ValidatorVoteDistance: NewGaugeDesc(
+			"solana_validator_vote_distance",
+			"Gap between current slot and last vote (lower is better)",
+			IdentityLabel,
+		),
+		ValidatorRootDistance: NewGaugeDesc(
+			"solana_validator_root_distance",
+			"Gap between last vote and root slot (tower stability metric)",
+			IdentityLabel,
+		),
+		fastMetricsCh: make(chan prometheus.Metric, 100),
+		stopFastCollection: make(chan struct{}),
 	}
 	return collector
 }
@@ -171,6 +190,10 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.NodeMinimumLedgerSlot.Desc
 	ch <- c.NodeFirstAvailableBlock.Desc
 	ch <- c.NodeIsActive.Desc
+	
+	// Vote distance and root distance are also node-specific metrics
+	ch <- c.ValidatorVoteDistance.Desc
+	ch <- c.ValidatorRootDistance.Desc
 	
 	// These metrics are only collected in regular mode
 	if !c.config.LightMode {
@@ -450,10 +473,118 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 	return
 }
 
+// Collects both vote distance and root distance in a single call to ensure consistency
+func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch chan<- prometheus.Metric) {
+	c.logger.Debug("Collecting vote and root distance metrics...")
+	
+	// Only proceed if we have a valid identity to monitor
+	if c.config.ValidatorIdentity == "" {
+		c.logger.Debug("Skipping vote/root distance collection - no validator identity configured.")
+		return
+	}
+	
+	// Get current slot
+	currentSlot, err := c.rpcClient.GetSlot(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		c.logger.Errorf("failed to get current slot: %v", err)
+		ch <- c.ValidatorVoteDistance.NewInvalidMetric(err)
+		ch <- c.ValidatorRootDistance.NewInvalidMetric(err)
+		return
+	}
+	
+	// Get vote accounts to find the last vote and root slot for our validator
+	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		c.logger.Errorf("failed to get vote accounts: %v", err)
+		ch <- c.ValidatorVoteDistance.NewInvalidMetric(err)
+		ch <- c.ValidatorRootDistance.NewInvalidMetric(err)
+		return
+	}
+	
+	// Find our validator in the vote accounts
+	var lastVote, rootSlot int64
+	found := false
+	
+	// Look in both current and delinquent validators
+	for _, accounts := range [][]rpc.VoteAccount{voteAccounts.Current, voteAccounts.Delinquent} {
+		for _, account := range accounts {
+			// Match by either vote account pubkey or node pubkey
+			if account.VotePubkey == c.config.VoteAccountPubkey || account.NodePubkey == c.config.ValidatorIdentity {
+				lastVote = account.LastVote
+				rootSlot = account.RootSlot
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	
+	if !found {
+		c.logger.Errorf("failed to find validator in vote accounts with identity %s or vote account %s", 
+			c.config.ValidatorIdentity, c.config.VoteAccountPubkey)
+		ch <- c.ValidatorVoteDistance.NewInvalidMetric(
+			fmt.Errorf("validator not found in vote accounts"))
+		ch <- c.ValidatorRootDistance.NewInvalidMetric(
+			fmt.Errorf("validator not found in vote accounts"))
+		return
+	}
+	
+	// Calculate distances
+	voteDistance := float64(currentSlot - lastVote)
+	rootDistance := float64(lastVote - rootSlot)
+	
+	// Export metrics
+	ch <- c.ValidatorVoteDistance.MustNewConstMetric(voteDistance, c.config.ValidatorIdentity)
+	ch <- c.ValidatorRootDistance.MustNewConstMetric(rootDistance, c.config.ValidatorIdentity)
+	
+	c.logger.Debugf("Vote distance: %f, Root distance: %f", voteDistance, rootDistance)
+}
+
+// Start a fast collection goroutine for time-sensitive metrics
+func (c *SolanaCollector) StartFastMetricsCollection(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-ticker.C:
+				ctx, cancel := context.WithTimeout(context.Background(), interval/2)
+				c.collectVoteAndRootDistance(ctx, c.fastMetricsCh)
+				cancel()
+			case <-c.stopFastCollection:
+				return
+			}
+		}
+	}()
+	
+	c.logger.Infof("Started fast metrics collection with interval %v", interval)
+}
+
+// Stop the fast collection goroutine
+func (c *SolanaCollector) StopFastMetricsCollection() {
+	close(c.stopFastCollection)
+	c.logger.Info("Stopped fast metrics collection")
+}
+
 func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.logger.Info("========== BEGIN COLLECTION ==========")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	
+	// Drain any metrics from the fast collection channel
+	select {
+	case metric := <-c.fastMetricsCh:
+		ch <- metric
+	default:
+		// No metrics waiting, continue with normal collection
+	}
+	
+	// Run the vote/root distance collection directly as part of the main collection
+	// This ensures the metrics are always available even if fast collection fails
+	c.collectVoteAndRootDistance(ctx, ch)
 
 	c.logger.Info("Collecting health metrics...")
 	c.collectHealth(ctx, ch)

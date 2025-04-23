@@ -32,6 +32,13 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go slotWatcher.WatchSlots(ctx)
+	
+	// Start fast metrics collection if configured
+	if config.FastMetricsInterval > 0 {
+		logger.Infof("Starting fast metrics collection with interval: %v", config.FastMetricsInterval)
+		collector.StartFastMetricsCollection(config.FastMetricsInterval)
+		defer collector.StopFastMetricsCollection()
+	}
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())

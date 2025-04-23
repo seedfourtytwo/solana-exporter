@@ -69,8 +69,37 @@ solana-exporter \
 #### Balance Tracking
 
 Using the `-balance-address <ADDRESS>` configuration parameter, the exporter can be used to monitor any account's
-SOL balance. This parameter can be set multiple times to track multiple accounts. Additionally, the balance of all 
-configured `-nodekey`'s is automatically tracked.
+SOL balance. This parameter can be set multiple times to track multiple addresses:
+
+```shell
+solana-exporter \
+  -balance-address <ADDRESS_1> \
+  -balance-address <ADDRESS_2> \
+  -balance-address <ADDRESS_3>
+```
+
+The exporter automatically tracks balances for:
+1. All specified `-balance-address` values
+2. All configured validator identity keys (via `-nodekey`)
+3. All corresponding vote account keys
+4. The validator identity (if specified with `-validator-identity`)
+5. The vote account (if specified with `-vote-account-pubkey`)
+
+##### Querying Balance Metrics
+
+To view an address's balance in Prometheus or Grafana, use the query:
+
+```
+solana_account_balance{address="YourSolanaAddressHere"}
+```
+
+For example:
+```
+solana_account_balance{address="JDa72CkixfF1JD9aYZosWqXyFCZwMpnVjR15bVBW2QRF"}  # Identity address
+solana_account_balance{address="3TEX5gBjcZCzAz3AYT2BQrwpDTSUd5FtszPs7yx9iGGL"}   # Vote account
+```
+
+Note that addresses must be configured in the exporter startup parameters before they can be queried.
 
 #### Block Sizes
 
@@ -181,6 +210,7 @@ The exporter is configured via the following command line arguments:
 | `-balance-address`                     | Address to monitor SOL balances for, in addition to the identity and vote accounts of the provided nodekeys - can be set multiple times.                                                                                | N/A                       |
 | `-comprehensive-slot-tracking`         | Set this flag to track `solana_leader_slots_by_epoch` for all validators.                                                                                                                                               | `false`                   |
 | `-comprehensive-vote-account-tracking` | Set this flag to track vote-account metrics for all validators.                                                                                                                                                         | `false`                   |
+| `-fast-metrics-interval`               | Collection interval in seconds for fast-changing metrics like vote distance and root distance.                                                                                                                          | `3`                       |
 | `-http-timeout`                        | HTTP timeout to use, in seconds.                                                                                                                                                                                        | `60`                      |
 | `-light-mode`                          | Set this flag to enable light-mode. In light mode, only metrics unique to the node being queried are reported (i.e., metrics such as `solana_inflation_rewards` which are visible from any RPC node, are not reported). | `false`                   |
 | `-listen-address`                      | Prometheus listen address.                                                                                                                                                                                              | `":8080"`                 |
@@ -190,6 +220,8 @@ The exporter is configured via the following command line arguments:
 | `-slot-pace`                           | This is the time (in seconds) between slot-watching metric collections                                                                                                                                                  | `1`                       |
 | `-active-identity`                     | Validator identity public key used to determine if the node is considered active in the `solana_node_is_active` metric.                                                                                                 | N/A                       |
 | `-epoch-cleanup-time`                  | The time to wait before cleaning old epoch metrics from the prometheus endpoint.                                                                                                                                        |                           |
+| `-validator-identity`                  | Validator identity public key for tracking validator-specific metrics.                                                                                                                                                  | N/A                       |
+| `-vote-account-pubkey`                 | Vote account public key to monitor. If not provided but validator-identity is, the exporter will attempt to find it.                                                                                                    | N/A                       |
 
 ### Notes on Configuration
 
@@ -226,7 +258,7 @@ The tables below describes all the metrics collected by the `solana-exporter`:
 | `solana_node_slot_height`                      | The current slot number.                                                                                              | N/A                           |
 | `solana_node_epoch_number`                     | The current epoch number.                                                                                             | N/A                           |
 | `solana_node_epoch_first_slot`                 | Current epoch's first slot \[inclusive\].                                                                             | N/A                           |
-| `solana_node_epoch_last_slot`                  | Current epoch's last slot \[inclusive\].                                                                              | N/A                           |
+| `solana_node_epoch_last_slot`                  | Current epoch's last slot \[inclusive\].                                                                             | N/A                           |
 | `solana_validator_leader_slots_total`          | Number of slots processed.                                                                                            | `status`, `nodekey`           |
 | `solana_validator_leader_slots_by_epoch_total` | Number of slots processed per validator.                                                                              | `status`, `nodekey`, `epoch`  |
 | `solana_cluster_slots_by_epoch_total`          | Number of slots processed by the cluster.                                                                             | `status`, `epoch`             |
@@ -236,18 +268,34 @@ The tables below describes all the metrics collected by the `solana-exporter`:
 | `solana_node_block_height`                     | The current block height of the node.                                                                                 | N/A                           |
 | `solana_node_is_active`                        | Whether the node is active and participating in consensus.                                                            | `identity`                    |
 | `solana_validator_commission`                  | Validator commission percentage rate (0-100).                                                                         | `nodekey`                     |
+| `solana_validator_current_epoch_credits`       | Current epoch credits for the validator.                                                                              | `nodekey`                     |
+| `solana_validator_total_credits`               | Total accumulated credits for the validator since genesis.                                                            | `nodekey`                     |
+| `solana_validator_vote_distance`               | Gap between current slot and last vote (lower is better).                                                             | `identity`                    |
+| `solana_validator_root_distance`               | Gap between last vote and root slot (tower stability metric).                                                         | `identity`                    |
 
-#### Vote Account Metrics
+### Validator Performance Metrics
 
-The following metrics are all received from the `getVoteAccounts` [RPC endpoint](https://solana.com/docs/rpc/http/getvoteaccounts):
-* `solana_validator_active_stake`
-* `solana_validator_last_vote`
-* `solana_validator_root_slot`
-* `solana_validator_delinquent`
+The new validator performance metrics provide critical insights into validator voting behavior:
 
-***NOTE***: If `-comprehensive-vote-account-tracking` is configured, then these metrics are tracked for **all** 
-validators. Regardless of comprehensive tracking, the above metrics' cluster counterparts are always tracked for easy 
-cluster-level comparison.
+#### Vote Distance
+
+The `solana_validator_vote_distance` metric measures the gap between the current slot and the last vote submitted by your validator. 
+This metric indicates how responsive your validator is in voting on new slots.
+
+- **Lower values are better**: Ideally, this value should be small (1-5 slots)
+- **High values may indicate**: Network issues, validator falling behind, or performance problems
+- **Collection frequency**: Collected at the interval specified by `-fast-metrics-interval` (default: 3 seconds)
+
+#### Root Distance
+
+The `solana_validator_root_distance` metric tracks the gap between the last vote and the root slot of the validator.
+This metric provides insight into tower stability and how quickly votes are being finalized.
+
+- **Normal range**: Typically follows patterns based on recent network confirmation times
+- **Sudden increases**: May indicate consensus issues or network problems
+- **Collection frequency**: Collected at the interval specified by `-fast-metrics-interval` (default: 3 seconds)
+
+These metrics are always available, even in light mode, when a validator identity is provided.
 
 ### Labels
 

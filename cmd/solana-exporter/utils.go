@@ -252,3 +252,22 @@ func ExtractHealthAndNumSlotsBehind(health string, getHealthErr error) (
 	return true, nil, 0, nil
 
 }
+
+// GetVoteAccountFromIdentity finds the vote account pubkey associated with a validator identity
+func GetVoteAccountFromIdentity(ctx context.Context, client *rpc.Client, identity string) (string, error) {
+	voteAccounts, err := client.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		return "", fmt.Errorf("failed to get vote accounts: %w", err)
+	}
+	
+	// Search in both current and delinquent validators
+	for _, accounts := range [][]rpc.VoteAccount{voteAccounts.Current, voteAccounts.Delinquent} {
+		for _, account := range accounts {
+			if account.NodePubkey == identity {
+				return account.VotePubkey, nil
+			}
+		}
+	}
+	
+	return "", fmt.Errorf("no vote account found for identity %s", identity)
+}

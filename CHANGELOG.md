@@ -128,7 +128,11 @@ The following metrics were removed (**[@johnstonematt](https://github.com/johnst
 
 * Added `solana_validator_commission` metric to track validator commission percentage rates (0-100)
 * Added metric collections for credits earned per Epoch and lifetime
-* Enhanced balance tracking to automatically include validator identity and vote account addresses
+* Added support for tracking multiple addresses with `-balance-address` flag (can be specified multiple times)
+* Added new validator performance metrics:
+  * `solana_validator_vote_distance`: Tracks gap between current slot and last vote
+  * `solana_validator_root_distance`: Tracks gap between last vote and root slot (tower stability)
+* Added `-fast-metrics-interval` flag to configure higher frequency collection for time-sensitive metrics
 
 
 ### Changed
@@ -137,6 +141,7 @@ The following metrics were removed (**[@johnstonematt](https://github.com/johnst
 * Light mode now only exports node-specific metrics and validator credits (when identity is provided)
 * Removed metric overlap between light mode and regular mode
 * Enhanced balance tracking to provide more detailed logging and validation
+* Improved balance tracking documentation to clarify usage of `-balance-address` flag for custom address monitoring
 
 ### Deprecated
 
