@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
@@ -318,31 +317,21 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	if c.config.LightMode && c.config.ValidatorIdentity != "" {
 		c.logger.Infof("Getting leader slot count for validator %s in epoch %v", c.config.ValidatorIdentity, c.currentEpoch)
 		
-		// Get the schedule
-		params := []interface{}{nil}
-		if c.config.ValidatorIdentity != "" {
-			params = append(params, map[string]interface{}{"identity": c.config.ValidatorIdentity})
-		}
-		
-		resp, err := c.client.Call(ctx, "getLeaderSchedule", params)
+		// Get the schedule using GetLeaderSchedule
+		leaderSchedule, err := c.client.GetLeaderSchedule(ctx, rpc.CommitmentConfirmed, c.config.ValidatorIdentity, 0)
 		if err != nil {
 			c.logger.Errorf("Failed to get leader schedule: %v", err)
 		} else {
-			var result map[string]map[string]interface{}
-			if err := json.Unmarshal(resp, &result); err != nil {
-				c.logger.Errorf("Failed to parse leader schedule: %v", err)
-			} else {
-				// Count slots for the validator
-				count := 0
-				if slots, ok := result[c.config.ValidatorIdentity]; ok {
-					count = len(slots)
-				}
-				
-				epochStr := toString(c.currentEpoch)
-				c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", 
-					c.config.ValidatorIdentity, count, epochStr)
-				c.AssignedLeaderSlotsMetric.WithLabelValues(c.config.ValidatorIdentity, epochStr).Set(float64(count))
+			// Count slots for the validator
+			count := 0
+			if slots, ok := leaderSchedule[c.config.ValidatorIdentity]; ok {
+				count = len(slots)
 			}
+			
+			epochStr := toString(c.currentEpoch)
+			c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", 
+				c.config.ValidatorIdentity, count, epochStr)
+			c.AssignedLeaderSlotsMetric.WithLabelValues(c.config.ValidatorIdentity, epochStr).Set(float64(count))
 		}
 	}
 }
