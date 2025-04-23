@@ -317,21 +317,26 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	if c.config.LightMode && c.config.ValidatorIdentity != "" {
 		c.logger.Infof("Getting leader slot count for validator %s in epoch %v", c.config.ValidatorIdentity, c.currentEpoch)
 		
-		// Get the schedule using GetLeaderSchedule
-		leaderSchedule, err := c.client.GetLeaderSchedule(ctx, rpc.CommitmentConfirmed, c.config.ValidatorIdentity, 0)
+		// Get the schedule using GetLeaderSchedule with the current slot
+		currentSlot, err := c.client.GetSlot(ctx, rpc.CommitmentConfirmed)
 		if err != nil {
-			c.logger.Errorf("Failed to get leader schedule: %v", err)
+			c.logger.Errorf("Failed to get current slot: %v", err)
 		} else {
-			// Count slots for the validator
-			count := 0
-			if slots, ok := leaderSchedule[c.config.ValidatorIdentity]; ok {
-				count = len(slots)
+			leaderSchedule, err := c.client.GetLeaderSchedule(ctx, rpc.CommitmentConfirmed, currentSlot)
+			if err != nil {
+				c.logger.Errorf("Failed to get leader schedule: %v", err)
+			} else {
+				// Count slots for the validator
+				count := 0
+				if slots, ok := leaderSchedule[c.config.ValidatorIdentity]; ok {
+					count = len(slots)
+				}
+				
+				epochStr := toString(c.currentEpoch)
+				c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", 
+					c.config.ValidatorIdentity, count, epochStr)
+				c.AssignedLeaderSlotsMetric.WithLabelValues(c.config.ValidatorIdentity, epochStr).Set(float64(count))
 			}
-			
-			epochStr := toString(c.currentEpoch)
-			c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", 
-				c.config.ValidatorIdentity, count, epochStr)
-			c.AssignedLeaderSlotsMetric.WithLabelValues(c.config.ValidatorIdentity, epochStr).Set(float64(count))
 		}
 	}
 }
