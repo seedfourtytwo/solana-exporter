@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
@@ -157,8 +158,12 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		watcher.SlotHeightMetric,
 		watcher.EpochNumberMetric)
 	
-	// Register additional metrics only in regular mode
-	if !config.LightMode {
+	// Register light mode specific metrics
+	if config.LightMode {
+		collectorsToRegister = append(collectorsToRegister,
+			watcher.AssignedLeaderSlotsMetric)
+	} else {
+		// Register additional metrics only in regular mode
 		collectorsToRegister = append(collectorsToRegister,
 			watcher.TotalTransactionsMetric,
 			watcher.EpochFirstSlotMetric,
@@ -169,8 +174,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			watcher.InflationRewardsMetric,
 			watcher.FeeRewardsMetric,
 			watcher.BlockSizeMetric,
-			watcher.BlockHeightMetric,
-			watcher.AssignedLeaderSlotsMetric)
+			watcher.BlockHeightMetric)
 	}
 	
 	// Register the selected collectors
@@ -308,14 +312,37 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 			c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
 		}
 		c.leaderSchedule = leaderSchedule
+	}
 
-		// Count and emit the total assigned leader slots for each validator
-		c.logger.Infof("Counting and emitting assigned leader slots for epoch %v", c.currentEpoch)
-		epochStr := toString(c.currentEpoch)
-		for nodekey, slots := range leaderSchedule {
-			slotCount := float64(len(slots))
-			c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", nodekey, int(slotCount), epochStr)
-			c.AssignedLeaderSlotsMetric.WithLabelValues(nodekey, epochStr).Set(slotCount)
+	// Light mode leader slot tracking
+	if c.config.LightMode && c.config.ValidatorIdentity != "" {
+		c.logger.Infof("Getting leader slot count for validator %s in epoch %v", c.config.ValidatorIdentity, c.currentEpoch)
+		
+		// Get the schedule
+		params := []interface{}{nil}
+		if c.config.ValidatorIdentity != "" {
+			params = append(params, map[string]interface{}{"identity": c.config.ValidatorIdentity})
+		}
+		
+		resp, err := c.client.Call(ctx, "getLeaderSchedule", params)
+		if err != nil {
+			c.logger.Errorf("Failed to get leader schedule: %v", err)
+		} else {
+			var result map[string]map[string]interface{}
+			if err := json.Unmarshal(resp, &result); err != nil {
+				c.logger.Errorf("Failed to parse leader schedule: %v", err)
+			} else {
+				// Count slots for the validator
+				count := 0
+				if slots, ok := result[c.config.ValidatorIdentity]; ok {
+					count = len(slots)
+				}
+				
+				epochStr := toString(c.currentEpoch)
+				c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", 
+					c.config.ValidatorIdentity, count, epochStr)
+				c.AssignedLeaderSlotsMetric.WithLabelValues(c.config.ValidatorIdentity, epochStr).Set(float64(count))
+			}
 		}
 	}
 }
@@ -352,9 +379,9 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 		}
 	}
 	
-	// Clean up assigned leader slots metrics
-	for _, nodekey := range trackedNodekeys {
-		labelValues := []string{nodekey, epochStr}
+	// Only clean up assigned leader slots metrics in light mode
+	if c.config.LightMode && c.config.ValidatorIdentity != "" {
+		labelValues := []string{c.config.ValidatorIdentity, epochStr}
 		c.logger.Debugf("deleting assigned-leader-slots with lv %v", labelValues)
 		if ok := c.AssignedLeaderSlotsMetric.DeleteLabelValues(labelValues...); !ok {
 			c.logger.Errorf("Failed to delete assigned-leader-slots with label values %v", labelValues)
