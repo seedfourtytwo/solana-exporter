@@ -552,40 +552,33 @@ func (c *SolanaCollector) StartFastMetricsCollection(interval time.Duration) {
 			case <-ticker.C:
 				ctx, cancel := context.WithTimeout(context.Background(), interval/2)
 				
-				// Use a temporary channel and then transfer to the main channel
+				// Create a temporary channel for collecting metrics
 				tempCh := make(chan prometheus.Metric, 10)
-				c.collectVoteAndRootDistance(ctx, tempCh)
-				cancel()
 				
-				// Count collected metrics 
-				collected := make([]prometheus.Metric, 0, 10)
-				for {
+				// Collect metrics in a background goroutine to avoid deadlock
+				go func() {
+					defer close(tempCh)
+					c.collectVoteAndRootDistance(ctx, tempCh)
+				}()
+				
+				// Collect metrics from the temporary channel
+				var metrics []prometheus.Metric
+				for m := range tempCh {
+					metrics = append(metrics, m)
+				}
+				
+				// Send collected metrics to the fast metrics channel
+				for _, m := range metrics {
 					select {
-					case metric, ok := <-tempCh:
-						if !ok {
-							// Channel closed
-							goto processMetrics
-						}
-						collected = append(collected, metric)
-						if len(collected) >= 10 { // Safety limit
-							goto processMetrics
-						}
+					case c.fastMetricsCh <- m:
+						// Successfully sent
 					default:
-						// No more metrics
-						goto processMetrics
+						// Channel full, just log and continue
+						c.logger.Debug("Fast metrics channel full, dropping metric")
 					}
 				}
 				
-			processMetrics:
-				// Send collected metrics to the main channel
-				for _, metric := range collected {
-					c.fastMetricsCh <- metric
-				}
-				
-				if len(collected) > 0 {
-					c.logger.Debugf("Fast collection cycle gathered %d metrics", len(collected))
-				}
-				
+				cancel()
 			case <-c.stopFastCollection:
 				return
 			}
@@ -606,13 +599,19 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	
+	// Track which metrics we've seen from fast collection
+	seenMetrics := make(map[string]bool)
+	
 	// Drain any metrics from the fast collection channel
-	drainedMetrics := false
+	drainedSome := false
 	for {
 		select {
 		case metric := <-c.fastMetricsCh:
+			// Keep track of which metrics we've seen
+			desc := metric.Desc().String()
+			seenMetrics[desc] = true
 			ch <- metric
-			drainedMetrics = true
+			drainedSome = true
 		default:
 			// No more metrics waiting, exit the loop
 			goto done
@@ -620,10 +619,9 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 done:
 
-	// Only collect vote/root distance directly if fast collection isn't active or no metrics were drained
-	if !drainedMetrics && c.config.FastMetricsInterval > 0 {
-		// Run the vote/root distance collection directly as part of the main collection
-		// This ensures the metrics are always available even if fast collection fails
+	// If we didn't drain any fast metrics or fast metrics are disabled,
+	// just collect vote and root distance normally
+	if !drainedSome || c.config.FastMetricsInterval == 0 {
 		c.collectVoteAndRootDistance(ctx, ch)
 	}
 
@@ -666,3 +664,5 @@ done:
 
 	c.logger.Info("=========== END COLLECTION ===========")
 }
+
+
