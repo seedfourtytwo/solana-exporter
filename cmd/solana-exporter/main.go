@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/seedfourtytwo/solana-exporter/pkg/rpc"
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
@@ -37,6 +38,12 @@ func main() {
 	if config.FastMetricsInterval > 0 {
 		logger.Infof("Starting fast metrics collection with interval: %v", config.FastMetricsInterval)
 		collector.StartFastMetricsCollection(config.FastMetricsInterval)
+		
+		// Force an immediate collection to ensure metrics are available on first scrape
+		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+		collector.collectVoteAndRootDistance(ctx, collector.fastMetricsCh)
+		cancel()
+		
 		defer collector.StopFastMetricsCollection()
 	}
 
