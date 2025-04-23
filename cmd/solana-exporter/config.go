@@ -262,6 +262,8 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 		return nil, err
 	}
 	config.FastMetricsInterval = time.Duration(fastMetricsInterval) * time.Second
+	
+	logger := slog.Get()
 	if voteAccountPubkey != "" {
 		config.VoteAccountPubkey = voteAccountPubkey
 	} else if validatorIdentity != "" {

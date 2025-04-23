@@ -210,7 +210,7 @@ The exporter is configured via the following command line arguments:
 | `-balance-address`                     | Address to monitor SOL balances for, in addition to the identity and vote accounts of the provided nodekeys - can be set multiple times.                                                                                | N/A                       |
 | `-comprehensive-slot-tracking`         | Set this flag to track `solana_leader_slots_by_epoch` for all validators.                                                                                                                                               | `false`                   |
 | `-comprehensive-vote-account-tracking` | Set this flag to track vote-account metrics for all validators.                                                                                                                                                         | `false`                   |
-| `-fast-metrics-interval`               | Collection interval in seconds for fast-changing metrics like vote distance and root distance.                                                                                                                          | `3`                       |
+| `-fast-metrics-interval`               | Collection interval in seconds **exclusively** for vote distance and root distance metrics. All other metrics use the standard Prometheus scrape interval (typically 15 seconds).                                        | `3`                       |
 | `-http-timeout`                        | HTTP timeout to use, in seconds.                                                                                                                                                                                        | `60`                      |
 | `-light-mode`                          | Set this flag to enable light-mode. In light mode, only metrics unique to the node being queried are reported (i.e., metrics such as `solana_inflation_rewards` which are visible from any RPC node, are not reported). | `false`                   |
 | `-listen-address`                      | Prometheus listen address.                                                                                                                                                                                              | `":8080"`                 |
@@ -295,7 +295,7 @@ This metric provides insight into tower stability and how quickly votes are bein
 - **Sudden increases**: May indicate consensus issues or network problems
 - **Collection frequency**: Collected at the interval specified by `-fast-metrics-interval` (default: 3 seconds)
 
-These metrics are always available, even in light mode, when a validator identity is provided.
+**Note**: The `-fast-metrics-interval` flag **only** affects these two metrics. All other metrics continue to be collected on the standard Prometheus scrape interval (typically 15 seconds). This ensures you get high-frequency data for these critical metrics without increasing the load on your validator from other metric collections.
 
 ### Labels
 

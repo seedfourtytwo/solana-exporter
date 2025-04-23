@@ -510,8 +510,8 @@ func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch cha
 		for _, account := range accounts {
 			// Match by either vote account pubkey or node pubkey
 			if account.VotePubkey == c.config.VoteAccountPubkey || account.NodePubkey == c.config.ValidatorIdentity {
-				lastVote = account.LastVote
-				rootSlot = account.RootSlot
+				lastVote = int64(account.LastVote)
+				rootSlot = int64(account.RootSlot)
 				found = true
 				break
 			}

@@ -132,7 +132,7 @@ The following metrics were removed (**[@johnstonematt](https://github.com/johnst
 * Added new validator performance metrics:
   * `solana_validator_vote_distance`: Tracks gap between current slot and last vote
   * `solana_validator_root_distance`: Tracks gap between last vote and root slot (tower stability)
-* Added `-fast-metrics-interval` flag to configure higher frequency collection for time-sensitive metrics
+* Added `-fast-metrics-interval` flag (default: 3 seconds) to configure higher frequency collection **exclusively** for vote distance and root distance metrics while keeping all other metrics on the standard Prometheus scrape interval
 
 
 ### Changed
