@@ -173,6 +173,7 @@ The exporter's `-light-mode` flag has been significantly enhanced to eliminate a
 | solana_node_slot_height            | Current slot number                                                |
 | solana_validator_current_epoch_credits* | Current epoch credits (with validator identity params)        |
 | solana_validator_total_credits*    | Total accumulated credits (with validator identity params)         |
+| solana_validator_assigned_leader_slots* | Total leader slots assigned in the current epoch schedule     |
 
 *Only available when using `-validator-identity` and `-vote-account-pubkey`
 
