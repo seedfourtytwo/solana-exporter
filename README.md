@@ -183,10 +183,35 @@ solana-exporter \
   -rpc-url http://localhost:8899 \
   -light-mode \
   -validator-identity <VALIDATOR_IDENTITY> \
-  -vote-account-pubkey <VOTE_ACCOUNT_PUBKEY>
+  -vote-account-pubkey <VOTE_ACCOUNT_PUBKEY> \
+  -fast-metrics-interval 3
 ```
 
 This configuration provides essential validator monitoring with minimal RPC load.
+
+#### Example Systemd Service with Fast Metrics:
+
+```
+[Unit]
+Description=Solana Exporter for Prometheus
+After=network.target
+
+[Service]
+User=sol
+WorkingDirectory=/home/sol
+ExecStart=/home/sol/validators/monitoring/solana-exporter/solana-exporter \
+    -rpc-url http://127.0.0.1:8899 \
+    -listen-address 0.0.0.0:9100 \
+    -validator-identity <VALIDATOR_IDENTITY> \
+    -vote-account-pubkey <VOTE_ACCOUNT_PUBKEY> \
+    -light-mode \
+    -fast-metrics-interval 3
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
 
 ## Installation
 ### Build
@@ -210,7 +235,7 @@ The exporter is configured via the following command line arguments:
 | `-balance-address`                     | Address to monitor SOL balances for, in addition to the identity and vote accounts of the provided nodekeys - can be set multiple times.                                                                                | N/A                       |
 | `-comprehensive-slot-tracking`         | Set this flag to track `solana_leader_slots_by_epoch` for all validators.                                                                                                                                               | `false`                   |
 | `-comprehensive-vote-account-tracking` | Set this flag to track vote-account metrics for all validators.                                                                                                                                                         | `false`                   |
-| `-fast-metrics-interval`               | Collection interval in seconds **exclusively** for vote distance and root distance metrics. All other metrics use the standard Prometheus scrape interval (typically 15 seconds).                                        | `3`                       |
+| `-fast-metrics-interval <SECONDS>`     | Collection interval in seconds **exclusively** for vote distance and root distance metrics. All other metrics use the standard Prometheus scrape interval (typically 15 seconds). Must provide a numeric value (e.g., `-fast-metrics-interval 3`).        | `3`                       |
 | `-http-timeout`                        | HTTP timeout to use, in seconds.                                                                                                                                                                                        | `60`                      |
 | `-light-mode`                          | Set this flag to enable light-mode. In light mode, only metrics unique to the node being queried are reported (i.e., metrics such as `solana_inflation_rewards` which are visible from any RPC node, are not reported). | `false`                   |
 | `-listen-address`                      | Prometheus listen address.                                                                                                                                                                                              | `":8080"`                 |

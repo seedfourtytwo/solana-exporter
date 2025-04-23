@@ -522,12 +522,11 @@ func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch cha
 	}
 	
 	if !found {
-		c.logger.Errorf("failed to find validator in vote accounts with identity %s or vote account %s", 
+		errMsg := fmt.Sprintf("validator not found in vote accounts with identity %s or vote account %s", 
 			c.config.ValidatorIdentity, c.config.VoteAccountPubkey)
-		ch <- c.ValidatorVoteDistance.NewInvalidMetric(
-			fmt.Errorf("validator not found in vote accounts"))
-		ch <- c.ValidatorRootDistance.NewInvalidMetric(
-			fmt.Errorf("validator not found in vote accounts"))
+		c.logger.Errorf(errMsg)
+		ch <- c.ValidatorVoteDistance.NewInvalidMetric(fmt.Errorf(errMsg))
+		ch <- c.ValidatorRootDistance.NewInvalidMetric(fmt.Errorf(errMsg))
 		return
 	}
 	
@@ -539,7 +538,7 @@ func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch cha
 	ch <- c.ValidatorVoteDistance.MustNewConstMetric(voteDistance, c.config.ValidatorIdentity)
 	ch <- c.ValidatorRootDistance.MustNewConstMetric(rootDistance, c.config.ValidatorIdentity)
 	
-	c.logger.Debugf("Vote distance: %f, Root distance: %f", voteDistance, rootDistance)
+	c.logger.Debugf("Collected metrics - Vote distance: %f, Root distance: %f", voteDistance, rootDistance)
 }
 
 // Start a fast collection goroutine for time-sensitive metrics
@@ -552,8 +551,41 @@ func (c *SolanaCollector) StartFastMetricsCollection(interval time.Duration) {
 			select {
 			case <-ticker.C:
 				ctx, cancel := context.WithTimeout(context.Background(), interval/2)
-				c.collectVoteAndRootDistance(ctx, c.fastMetricsCh)
+				
+				// Use a temporary channel and then transfer to the main channel
+				tempCh := make(chan prometheus.Metric, 10)
+				c.collectVoteAndRootDistance(ctx, tempCh)
 				cancel()
+				
+				// Count collected metrics 
+				collected := make([]prometheus.Metric, 0, 10)
+				for {
+					select {
+					case metric, ok := <-tempCh:
+						if !ok {
+							// Channel closed
+							goto processMetrics
+						}
+						collected = append(collected, metric)
+						if len(collected) >= 10 { // Safety limit
+							goto processMetrics
+						}
+					default:
+						// No more metrics
+						goto processMetrics
+					}
+				}
+				
+			processMetrics:
+				// Send collected metrics to the main channel
+				for _, metric := range collected {
+					c.fastMetricsCh <- metric
+				}
+				
+				if len(collected) > 0 {
+					c.logger.Debugf("Fast collection cycle gathered %d metrics", len(collected))
+				}
+				
 			case <-c.stopFastCollection:
 				return
 			}
@@ -575,16 +607,25 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	defer cancel()
 	
 	// Drain any metrics from the fast collection channel
-	select {
-	case metric := <-c.fastMetricsCh:
-		ch <- metric
-	default:
-		// No metrics waiting, continue with normal collection
+	drainedMetrics := false
+	for {
+		select {
+		case metric := <-c.fastMetricsCh:
+			ch <- metric
+			drainedMetrics = true
+		default:
+			// No more metrics waiting, exit the loop
+			goto done
+		}
 	}
-	
-	// Run the vote/root distance collection directly as part of the main collection
-	// This ensures the metrics are always available even if fast collection fails
-	c.collectVoteAndRootDistance(ctx, ch)
+done:
+
+	// Only collect vote/root distance directly if fast collection isn't active or no metrics were drained
+	if !drainedMetrics && c.config.FastMetricsInterval > 0 {
+		// Run the vote/root distance collection directly as part of the main collection
+		// This ensures the metrics are always available even if fast collection fails
+		c.collectVoteAndRootDistance(ctx, ch)
+	}
 
 	c.logger.Info("Collecting health metrics...")
 	c.collectHealth(ctx, ch)
