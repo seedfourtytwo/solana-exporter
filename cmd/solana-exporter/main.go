@@ -14,6 +14,7 @@ import (
 func main() {
 	slog.Init()
 	logger := slog.Get()
+	logger.Infof("DEBUG: main() started")
 	ctx := context.Background()
 
 	config, err := NewExporterConfigFromCLI(ctx)
