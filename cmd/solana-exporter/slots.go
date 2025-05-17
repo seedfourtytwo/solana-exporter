@@ -191,22 +191,9 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		}
 	}
 
-	logger.Infof("DEBUG: Collectors registration complete")
+	logger.Debugf("Collectors registration complete")
 	for _, collector := range collectorsToRegister {
-		logger.Infof("DEBUG: Registered collector type: %T", collector)
-	}
-
-	// Specifically check the InflationRewardsMetric
-	if !config.LightMode {
-		logger.Infof("DEBUG: InflationRewardsMetric after registration: %+v", watcher.InflationRewardsMetric)
-		
-		// Add a test metric emission to confirm the metric is working
-		if len(config.VoteKeys) > 0 {
-			testAddress := config.VoteKeys[0]
-			logger.Infof("DEBUG: Adding test metric for %s", testAddress)
-			watcher.InflationRewardsMetric.WithLabelValues(testAddress, "test_epoch").Add(0.0001)
-			logger.Infof("DEBUG: Test metric added")
-		}
+		logger.Debugf("Registered collector type: %T", collector)
 	}
 
 	return &watcher
@@ -595,53 +582,39 @@ func (c *SlotWatcher) fetchAndEmitSingleBlockInfo(
 // fetchAndEmitInflationRewards fetches and emits the inflation rewards for the configured inflationRewardAddresses
 // at the provided epoch
 func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch int64) error {
-	c.logger.Infof("DEBUG: Starting fetchAndEmitInflationRewards for epoch %v", epoch)
-	c.logger.Infof("DEBUG: LightMode is: %v", c.config.LightMode)
-	c.logger.Infof("DEBUG: InflationRewardsMetric is: %+v", c.InflationRewardsMetric)
-	c.logger.Infof("DEBUG: VoteKeys configured: %v", c.config.VoteKeys)
-	c.logger.Infof("DEBUG: VoteKeys length: %d", len(c.config.VoteKeys))
-
 	if c.config.LightMode {
 		c.logger.Debug("Skipping inflation-rewards fetching in light mode.")
 		return nil
 	}
+
 	c.logger.Infof("Fetching inflation reward for epoch %v ...", toString(epoch))
 	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.config.VoteKeys, epoch)
 	if err != nil {
-		c.logger.Errorf("DEBUG: Error fetching inflation rewards: %v", err)
 		return fmt.Errorf("error fetching inflation rewards: %w", err)
 	}
 
-	c.logger.Infof("DEBUG: Received %d reward infos from RPC", len(rewardInfos))
 	for i, rewardInfo := range rewardInfos {
 		if i >= len(c.config.VoteKeys) {
-			c.logger.Errorf("DEBUG: Array index out of bounds! i=%d, VoteKeys length=%d", i, len(c.config.VoteKeys))
+			c.logger.Debugf("Array index out of bounds! i=%d, VoteKeys length=%d", i, len(c.config.VoteKeys))
 			continue
 		}
-		
 		address := c.config.VoteKeys[i]
-		// Optional: check for zero-value rewardInfo
 		if rewardInfo.Amount == 0 && rewardInfo.Epoch == 0 {
-			c.logger.Infof("DEBUG: Reward info is zero value for address %s at index %d", address, i)
+			c.logger.Debugf("Reward info is zero value for address %s at index %d", address, i)
 			continue
 		}
-		
 		reward := float64(rewardInfo.Amount) / rpc.LamportsInSol
-		c.logger.Infof("DEBUG: About to add reward %f SOL for address %s in epoch %s", reward, address, toString(epoch))
-		
-		// Try-catch equivalent to identify any panics during metric emission
+		c.logger.Debugf("About to add reward %f SOL for address %s in epoch %s", reward, address, toString(epoch))
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					c.logger.Errorf("DEBUG: PANIC in metric emission: %v", r)
+					c.logger.Errorf("PANIC in metric emission: %v", r)
 				}
 			}()
 			c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Add(reward)
 		}()
-		
-		c.logger.Infof("DEBUG: Added reward metric with labels address=%s, epoch=%s", address, toString(epoch))
+		c.logger.Debugf("Added reward metric with labels address=%s, epoch=%s", address, toString(epoch))
 	}
-	
 	c.logger.Infof("Fetched inflation reward for epoch %v.", epoch)
 	return nil
 }
