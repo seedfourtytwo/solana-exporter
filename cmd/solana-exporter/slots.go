@@ -40,14 +40,16 @@ type SlotWatcher struct {
 	EpochNumberMetric         prometheus.Gauge
 	EpochFirstSlotMetric      prometheus.Gauge
 	EpochLastSlotMetric       prometheus.Gauge
-	LeaderSlotsMetric         *prometheus.CounterVec
-	LeaderSlotsByEpochMetric  *prometheus.CounterVec
 	ClusterSlotsByEpochMetric *prometheus.CounterVec
 	InflationRewardsMetric    *prometheus.CounterVec
 	FeeRewardsMetric          *prometheus.CounterVec
 	BlockSizeMetric           *prometheus.GaugeVec
 	BlockHeightMetric         prometheus.Gauge
 	AssignedLeaderSlotsMetric *prometheus.GaugeVec
+
+	// New per-epoch gauges
+	LeaderSlotsProcessedEpochGauge prometheus.Gauge
+	LeaderSlotsSkippedEpochGauge prometheus.Gauge
 }
 
 func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
@@ -59,8 +61,6 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		nodekeyTracker: NewEpochTrackedValidators(),
 		// metrics:
 		TotalTransactionsMetric: prometheus.NewGauge(prometheus.GaugeOpts{
-			// even though this isn't a counter, it is supposed to act as one,
-			// and so we name it with the _total suffix
 			Name: "solana_node_transactions_total",
 			Help: "Total number of transactions processed without error since genesis.",
 		}),
@@ -80,26 +80,6 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			Name: "solana_node_epoch_last_slot",
 			Help: "Current epoch's last slot [inclusive].",
 		}),
-		LeaderSlotsMetric: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "solana_validator_leader_slots_total",
-				Help: fmt.Sprintf(
-					"Number of slots processed, grouped by %s, and %s ('%s' or '%s')",
-					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped,
-				),
-			},
-			[]string{NodekeyLabel, SkipStatusLabel},
-		),
-		LeaderSlotsByEpochMetric: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "solana_validator_leader_slots_by_epoch_total",
-				Help: fmt.Sprintf(
-					"Number of slots processed, grouped by %s, %s ('%s' or '%s'), and %s",
-					NodekeyLabel, SkipStatusLabel, StatusValid, StatusSkipped, EpochLabel,
-				),
-			},
-			[]string{NodekeyLabel, EpochLabel, SkipStatusLabel},
-		),
 		ClusterSlotsByEpochMetric: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "solana_cluster_slots_by_epoch_total",
@@ -145,38 +125,32 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			},
 			[]string{NodekeyLabel, EpochLabel},
 		),
+		LeaderSlotsProcessedEpochGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "solana_validator_leader_slots_processed_epoch",
+			Help: "Number of leader slots processed (valid) by this validator in the current epoch.",
+		}),
+		LeaderSlotsSkippedEpochGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "solana_validator_leader_slots_skipped_epoch",
+			Help: "Number of leader slots skipped by this validator in the current epoch.",
+		}),
 	}
-	// register
 	logger.Info("Registering slot watcher metrics:")
-	
-	// Create a list of collectors to register based on light mode
 	var collectorsToRegister []prometheus.Collector
-	
-	// Always register these core metrics regardless of mode
 	collectorsToRegister = append(collectorsToRegister, 
 		watcher.SlotHeightMetric,
-		watcher.EpochNumberMetric)
-	
-	// Register light mode specific metrics
-	if config.LightMode {
-		collectorsToRegister = append(collectorsToRegister,
-			watcher.AssignedLeaderSlotsMetric)
-	} else {
-		// Register additional metrics only in regular mode
-		collectorsToRegister = append(collectorsToRegister,
-			watcher.TotalTransactionsMetric,
-			watcher.EpochFirstSlotMetric,
-			watcher.EpochLastSlotMetric,
-			watcher.LeaderSlotsMetric,
-			watcher.LeaderSlotsByEpochMetric,
-			watcher.ClusterSlotsByEpochMetric,
-			watcher.InflationRewardsMetric,
-			watcher.FeeRewardsMetric,
-			watcher.BlockSizeMetric,
-			watcher.BlockHeightMetric)
-	}
-	
-	// Register the selected collectors
+		watcher.EpochNumberMetric,
+		watcher.TotalTransactionsMetric,
+		watcher.EpochFirstSlotMetric,
+		watcher.EpochLastSlotMetric,
+		watcher.ClusterSlotsByEpochMetric,
+		watcher.InflationRewardsMetric,
+		watcher.FeeRewardsMetric,
+		watcher.BlockSizeMetric,
+		watcher.BlockHeightMetric,
+		watcher.AssignedLeaderSlotsMetric,
+		watcher.LeaderSlotsProcessedEpochGauge,
+		watcher.LeaderSlotsSkippedEpochGauge,
+	)
 	for _, collector := range collectorsToRegister {
 		if err := prometheus.Register(collector); err != nil {
 			var (
@@ -190,12 +164,10 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			}
 		}
 	}
-
 	logger.Debugf("Collectors registration complete")
 	for _, collector := range collectorsToRegister {
 		logger.Debugf("Registered collector type: %T", collector)
 	}
-
 	return &watcher
 }
 
@@ -375,7 +347,7 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 	for _, status := range []string{StatusValid, StatusSkipped} {
 		c.deleteMetricLabelValues(c.ClusterSlotsByEpochMetric, "cluster-slots-by-epoch", epochStr, status)
 		for _, nodekey := range trackedNodekeys {
-			c.deleteMetricLabelValues(c.LeaderSlotsByEpochMetric, "leader-slots-by-epoch", nodekey, epochStr, status)
+			c.deleteMetricLabelValues(c.AssignedLeaderSlotsMetric, "leader-slots-by-epoch", nodekey, epochStr, status)
 		}
 	}
 	
@@ -395,28 +367,22 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 // remaining slots in the "current" epoch before we start tracking the new one.
 func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo) {
 	c.logger.Infof("Closing current epoch %v, moving into epoch %v", c.currentEpoch, newEpoch.Epoch)
-	c.logger.Infof("DEBUG: In closeCurrentEpoch, LightMode=%v, VoteKeys length=%d", c.config.LightMode, len(c.config.VoteKeys))
-	
+
+	// On epoch transition, reset the per-epoch gauges
+	c.LeaderSlotsProcessedEpochGauge.Set(0)
+	c.LeaderSlotsSkippedEpochGauge.Set(0)
+
 	// In light mode, we skip most of these operations
 	if !c.config.LightMode {
 		// fetch inflation rewards for epoch we about to close:
 		if len(c.config.VoteKeys) > 0 {
-			c.logger.Infof("DEBUG: About to call fetchAndEmitInflationRewards for epoch %v", c.currentEpoch)
 			if err := c.fetchAndEmitInflationRewards(ctx, c.currentEpoch); err != nil {
 				c.logger.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
-			} else {
-				c.logger.Infof("DEBUG: Successfully called fetchAndEmitInflationRewards")
 			}
-		} else {
-			c.logger.Infof("DEBUG: Skipping fetchAndEmitInflationRewards because no vote keys configured")
 		}
-
 		c.moveSlotWatermark(ctx, c.lastSlot)
 		go c.cleanEpoch(ctx, c.currentEpoch)
-	} else {
-		c.logger.Infof("DEBUG: Skipping fetchAndEmitInflationRewards because in light mode")
 	}
-	
 	c.trackEpoch(ctx, newEpoch)
 }
 
@@ -439,9 +405,66 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64) {
 	c.logger.Infof("Moving watermark %v -> %v", c.slotWatermark, to)
 	startSlot := c.slotWatermark + 1
-	c.fetchAndEmitBlockProduction(ctx, startSlot, to)
+	c.processLeaderSlotsForValidator(ctx, startSlot, to)
 	c.fetchAndEmitBlockInfos(ctx, startSlot, to)
 	c.slotWatermark = to
+}
+
+// New function to process leader slots for the validator and update gauges
+func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startSlot, endSlot int64) {
+	if c.config.LightMode {
+		c.logger.Debug("Skipping leader slot processing in light mode.")
+		return
+	}
+	c.logger.Debugf("Processing leader slots for validator in [%v -> %v]", startSlot, endSlot)
+
+	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
+		c.logger.Fatalf("invalid slot range: %v", err)
+	}
+
+	// Only process for our validator's nodekey
+	validatorNodekey := c.config.ValidatorIdentity
+	if validatorNodekey == "" {
+		c.logger.Warn("Validator identity not set, cannot process leader slots for validator.")
+		return
+	}
+
+	// Get the leader schedule for this epoch
+	leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, []string{validatorNodekey}, startSlot, c.firstSlot)
+	if err != nil {
+		c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
+		return
+	}
+
+	leaderSlots := leaderSchedule[validatorNodekey]
+	if len(leaderSlots) == 0 {
+		c.logger.Infof("No leader slots for validator %s in [%v -> %v]", validatorNodekey, startSlot, endSlot)
+		return
+	}
+
+	// For each slot, check if it was produced or skipped
+	blocksProduced := 0
+	slotsSkipped := 0
+	for _, slot := range leaderSlots {
+		blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, slot, slot)
+		if err != nil {
+			c.logger.Errorf("Failed to get block production for slot %d: %v", slot, err)
+			continue
+		}
+		prod, ok := blockProduction.ByIdentity[validatorNodekey]
+		if !ok {
+			c.logger.Debugf("No block production info for validator %s at slot %d", validatorNodekey, slot)
+			continue
+		}
+		if prod.BlocksProduced > 0 {
+			blocksProduced++
+		} else {
+			slotsSkipped++
+		}
+	}
+	c.LeaderSlotsProcessedEpochGauge.Add(float64(blocksProduced))
+	c.LeaderSlotsSkippedEpochGauge.Add(float64(slotsSkipped))
+	c.logger.Infof("Updated per-epoch leader slot gauges: processed=%d, skipped=%d", blocksProduced, slotsSkipped)
 }
 
 // fetchAndEmitBlockProduction fetches block production from startSlot up to the provided endSlot [inclusive],
@@ -474,12 +497,12 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, startSlot
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		c.LeaderSlotsMetric.WithLabelValues(address, StatusValid).Add(valid)
-		c.LeaderSlotsMetric.WithLabelValues(address, StatusSkipped).Add(skipped)
+		c.AssignedLeaderSlotsMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
+		c.AssignedLeaderSlotsMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
 
 		if slices.Contains(c.config.NodeKeys, address) || c.config.ComprehensiveSlotTracking {
-			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
-			c.LeaderSlotsByEpochMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
+			c.AssignedLeaderSlotsMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
+			c.AssignedLeaderSlotsMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
 			nodekeys = append(nodekeys, address)
 		}
 
