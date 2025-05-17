@@ -418,6 +418,17 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	}
 	c.logger.Debugf("Processing leader slots for validator in [%v -> %v]", startSlot, endSlot)
 
+	// Patch: Ensure we do not request slots beyond the current slot
+	currentSlot, err := c.client.GetSlot(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		c.logger.Errorf("Failed to get current slot: %v", err)
+		return
+	}
+	if endSlot > currentSlot {
+		c.logger.Warnf("endSlot %d is greater than currentSlot %d, adjusting endSlot", endSlot, currentSlot)
+		endSlot = currentSlot
+	}
+
 	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
 		c.logger.Fatalf("invalid slot range: %v", err)
 	}
@@ -446,6 +457,9 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	blocksProduced := 0
 	slotsSkipped := 0
 	for _, slot := range leaderSlots {
+		if slot > endSlot {
+			continue // skip slots beyond the allowed range
+		}
 		blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, slot, slot)
 		if err != nil {
 			c.logger.Errorf("Failed to get block production for slot %d: %v", slot, err)
