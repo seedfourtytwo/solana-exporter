@@ -620,8 +620,9 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 		}
 		
 		address := c.config.VoteKeys[i]
-		if rewardInfo == nil {
-			c.logger.Infof("DEBUG: Reward info is nil for address %s at index %d", address, i)
+		// Optional: check for zero-value rewardInfo
+		if rewardInfo.Amount == 0 && rewardInfo.Epoch == 0 {
+			c.logger.Infof("DEBUG: Reward info is zero value for address %s at index %d", address, i)
 			continue
 		}
 		
