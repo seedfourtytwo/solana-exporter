@@ -648,3 +648,11 @@ func (c *SlotWatcher) deleteMetricLabelValues(metric *prometheus.CounterVec, nam
 		c.logger.Errorf("Failed to delete %s with label values %v", name, lvs)
 	}
 }
+
+// Add this function for deleting label values from GaugeVec
+func (c *SlotWatcher) deleteGaugeLabelValues(metric *prometheus.GaugeVec, name string, lvs ...string) {
+	c.logger.Debugf("deleting %v with lv %v", name, lvs)
+	if ok := metric.DeleteLabelValues(lvs...); !ok {
+		c.logger.Errorf("Failed to delete %s with label values %v", name, lvs)
+	}
+}
