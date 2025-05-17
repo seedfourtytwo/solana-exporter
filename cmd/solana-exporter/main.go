@@ -11,9 +11,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// BuildVersion is set at build time using -ldflags
+var BuildVersion = "dev"
+
 func main() {
 	slog.Init()
 	logger := slog.Get()
+	logger.Infof("DEBUG: solana-exporter build version: %s", BuildVersion)
 	logger.Infof("DEBUG: main() started")
 	ctx := context.Background()
 
