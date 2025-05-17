@@ -27,6 +27,8 @@ func main() {
 		)
 	}
 
+	logger.Infof("DEBUG: VoteKeys at startup: %v", config.VoteKeys)
+
 	rpcClient := rpc.NewRPCClient(config.RpcUrl, config.HttpTimeout)
 	collector := NewSolanaCollector(rpcClient, config)
 	slotWatcher := NewSlotWatcher(rpcClient, config)
