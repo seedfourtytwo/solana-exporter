@@ -347,7 +347,7 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 	for _, status := range []string{StatusValid, StatusSkipped} {
 		c.deleteMetricLabelValues(c.ClusterSlotsByEpochMetric, "cluster-slots-by-epoch", epochStr, status)
 		for _, nodekey := range trackedNodekeys {
-			c.deleteMetricLabelValues(c.AssignedLeaderSlotsMetric, "leader-slots-by-epoch", nodekey, epochStr, status)
+			c.deleteGaugeLabelValues(c.AssignedLeaderSlotsMetric, "leader-slots-by-epoch", nodekey, epochStr, status)
 		}
 	}
 	
