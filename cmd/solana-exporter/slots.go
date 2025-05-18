@@ -50,6 +50,9 @@ type SlotWatcher struct {
 	// New per-epoch gauges
 	LeaderSlotsProcessedEpochGauge prometheus.Gauge
 	LeaderSlotsSkippedEpochGauge prometheus.Gauge
+
+	processedLeaderSlots map[int64]struct{}
+	skippedLeaderSlots map[int64]struct{}
 }
 
 func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
@@ -133,6 +136,8 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			Name: "solana_validator_leader_slots_skipped_epoch",
 			Help: "Number of leader slots skipped by this validator in the current epoch.",
 		}),
+		processedLeaderSlots: make(map[int64]struct{}),
+		skippedLeaderSlots: make(map[int64]struct{}),
 	}
 	logger.Info("Registering slot watcher metrics:")
 	var collectorsToRegister []prometheus.Collector
@@ -368,9 +373,11 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo) {
 	c.logger.Infof("Closing current epoch %v, moving into epoch %v", c.currentEpoch, newEpoch.Epoch)
 
-	// On epoch transition, reset the per-epoch gauges
+	// On epoch transition, reset the per-epoch gauges and slot sets
 	c.LeaderSlotsProcessedEpochGauge.Set(0)
 	c.LeaderSlotsSkippedEpochGauge.Set(0)
+	c.processedLeaderSlots = make(map[int64]struct{})
+	c.skippedLeaderSlots = make(map[int64]struct{})
 
 	// In light mode, we skip most of these operations
 	if !c.config.LightMode {
@@ -452,9 +459,6 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 		return
 	}
 
-	// For each slot, check if it was produced or skipped (per-slot granularity)
-	blocksProduced := 0
-	slotsSkipped := 0
 	for _, slot := range leaderSlots {
 		if slot > endSlot {
 			continue // skip slots beyond the allowed range
@@ -470,14 +474,14 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 			continue
 		}
 		if prod.BlocksProduced > 0 {
-			blocksProduced++
+			c.processedLeaderSlots[slot] = struct{}{}
 		} else {
-			slotsSkipped++
+			c.skippedLeaderSlots[slot] = struct{}{}
 		}
 	}
-	c.LeaderSlotsProcessedEpochGauge.Add(float64(blocksProduced))
-	c.LeaderSlotsSkippedEpochGauge.Add(float64(slotsSkipped))
-	c.logger.Infof("Updated per-epoch leader slot gauges: processed=%d, skipped=%d", blocksProduced, slotsSkipped)
+	c.LeaderSlotsProcessedEpochGauge.Set(float64(len(c.processedLeaderSlots)))
+	c.LeaderSlotsSkippedEpochGauge.Set(float64(len(c.skippedLeaderSlots)))
+	c.logger.Infof("Updated per-epoch leader slot gauges: processed=%d, skipped=%d", len(c.processedLeaderSlots), len(c.skippedLeaderSlots))
 }
 
 // fetchAndEmitBlockProduction fetches block production from startSlot up to the provided endSlot [inclusive],
