@@ -341,11 +341,6 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 		c.deleteMetricLabelValues(c.InflationRewardsMetric, "inflation-rewards", c.config.VoteKeys[i], epochStr)
 	}
 	// slots:
-	var trackedNodekeys []string
-	trackedNodekeys, err := c.nodekeyTracker.GetTrackedValidators(epoch)
-	if err != nil {
-		c.logger.Errorf("Failed to get tracked validators, bailing out: %v", err)
-	}
 	for _, status := range []string{StatusValid, StatusSkipped} {
 		c.deleteMetricLabelValues(c.ClusterSlotsByEpochMetric, "cluster-slots-by-epoch", epochStr, status)
 	}
