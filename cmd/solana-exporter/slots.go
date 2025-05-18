@@ -148,7 +148,13 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		watcher.FeeRewardsMetric,
 		watcher.BlockSizeMetric,
 		watcher.BlockHeightMetric,
-		watcher.AssignedLeaderSlotsGauge,
+	)
+	if !config.LightMode {
+		collectorsToRegister = append(collectorsToRegister,
+			watcher.AssignedLeaderSlotsGauge,
+		)
+	}
+	collectorsToRegister = append(collectorsToRegister,
 		watcher.LeaderSlotsProcessedEpochGauge,
 		watcher.LeaderSlotsSkippedEpochGauge,
 	)
@@ -294,31 +300,10 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	}
 
 	// Light mode leader slot tracking
-	if c.config.LightMode && c.config.ValidatorIdentity != "" {
-		c.logger.Infof("Getting leader slot count for validator %s in epoch %v", c.config.ValidatorIdentity, c.currentEpoch)
-		
-		// Get the schedule using GetLeaderSchedule with the current slot
-		currentSlot, err := c.client.GetSlot(ctx, rpc.CommitmentConfirmed)
-		if err != nil {
-			c.logger.Errorf("Failed to get current slot: %v", err)
-		} else {
-			leaderSchedule, err := c.client.GetLeaderSchedule(ctx, rpc.CommitmentConfirmed, currentSlot)
-			if err != nil {
-				c.logger.Errorf("Failed to get leader schedule: %v", err)
-			} else {
-				// Count slots for the validator
-				count := 0
-				if slots, ok := leaderSchedule[c.config.ValidatorIdentity]; ok {
-					count = len(slots)
-				}
-				
-				epochStr := toString(c.currentEpoch)
-				c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", 
-					c.config.ValidatorIdentity, count, epochStr)
-				c.AssignedLeaderSlotsGauge.Set(float64(count))
-			}
-		}
-	}
+	// if c.config.LightMode && c.config.ValidatorIdentity != "" {
+	//     ...
+	//     c.AssignedLeaderSlotsGauge.Set(float64(count))
+	// }
 }
 
 // cleanEpoch deletes old epoch-labelled metrics which are no longer being updated due to an epoch change.
