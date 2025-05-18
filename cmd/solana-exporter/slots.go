@@ -427,6 +427,7 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	}
 
 	// Get the leader schedule for this epoch
+	c.logger.Infof("Fetching trimmed leader schedule for validator %s, startSlot=%d, firstSlot=%d", validatorNodekey, startSlot, c.firstSlot)
 	leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, []string{validatorNodekey}, startSlot, c.firstSlot)
 	if err != nil {
 		c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
@@ -434,10 +435,12 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	}
 
 	leaderSlots := leaderSchedule[validatorNodekey]
+	c.logger.Infof("Fetched leaderSlots for validator %s: %v", validatorNodekey, leaderSlots)
 	if len(leaderSlots) == 0 {
-		c.logger.Infof("No leader slots for validator %s in [%v -> %v]", validatorNodekey, startSlot, endSlot)
-		return
+		c.logger.Warnf("No leader slots for validator %s in [%v -> %v] (expected nonzero if scheduled)", validatorNodekey, startSlot, endSlot)
 	}
+	c.logger.Infof("Setting AssignedLeaderSlotsGauge to %d (len(leaderSlots)) for validator %s", len(leaderSlots), validatorNodekey)
+	c.AssignedLeaderSlotsGauge.Set(float64(len(leaderSlots)))
 
 	for _, slot := range leaderSlots {
 		if slot > endSlot {
