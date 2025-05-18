@@ -45,7 +45,7 @@ type SlotWatcher struct {
 	FeeRewardsMetric          *prometheus.CounterVec
 	BlockSizeMetric           *prometheus.GaugeVec
 	BlockHeightMetric         prometheus.Gauge
-	AssignedLeaderSlotsMetric *prometheus.GaugeVec
+	AssignedLeaderSlotsGauge  prometheus.Gauge
 
 	// New per-epoch gauges
 	LeaderSlotsProcessedEpochGauge prometheus.Gauge
@@ -119,16 +119,10 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 			Name: "solana_node_block_height",
 			Help: "The current block height of the node",
 		}),
-		AssignedLeaderSlotsMetric: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "solana_validator_assigned_leader_slots",
-				Help: fmt.Sprintf(
-					"Number of leader slots assigned in the schedule for the current epoch, grouped by %s and %s",
-					NodekeyLabel, EpochLabel,
-				),
-			},
-			[]string{NodekeyLabel, EpochLabel},
-		),
+		AssignedLeaderSlotsGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "solana_validator_assigned_leader_slots",
+			Help: "Number of leader slots assigned in the schedule for the current epoch for this validator.",
+		}),
 		LeaderSlotsProcessedEpochGauge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "solana_validator_leader_slots_processed_epoch",
 			Help: "Number of leader slots processed (valid) by this validator in the current epoch.",
@@ -154,7 +148,7 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 		watcher.FeeRewardsMetric,
 		watcher.BlockSizeMetric,
 		watcher.BlockHeightMetric,
-		watcher.AssignedLeaderSlotsMetric,
+		watcher.AssignedLeaderSlotsGauge,
 		watcher.LeaderSlotsProcessedEpochGauge,
 		watcher.LeaderSlotsSkippedEpochGauge,
 	)
@@ -321,7 +315,7 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 				epochStr := toString(c.currentEpoch)
 				c.logger.Infof("Validator %s has %d assigned leader slots for epoch %s", 
 					c.config.ValidatorIdentity, count, epochStr)
-				c.AssignedLeaderSlotsMetric.WithLabelValues(c.config.ValidatorIdentity, epochStr).Set(float64(count))
+				c.AssignedLeaderSlotsGauge.Set(float64(count))
 			}
 		}
 	}
@@ -355,16 +349,7 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 	for _, status := range []string{StatusValid, StatusSkipped} {
 		c.deleteMetricLabelValues(c.ClusterSlotsByEpochMetric, "cluster-slots-by-epoch", epochStr, status)
 		for _, nodekey := range trackedNodekeys {
-			c.deleteGaugeLabelValues(c.AssignedLeaderSlotsMetric, "leader-slots-by-epoch", nodekey, epochStr, status)
-		}
-	}
-	
-	// Only clean up assigned leader slots metrics in light mode
-	if c.config.LightMode && c.config.ValidatorIdentity != "" {
-		labelValues := []string{c.config.ValidatorIdentity, epochStr}
-		c.logger.Debugf("deleting assigned-leader-slots with lv %v", labelValues)
-		if ok := c.AssignedLeaderSlotsMetric.DeleteLabelValues(labelValues...); !ok {
-			c.logger.Errorf("Failed to delete assigned-leader-slots with label values %v", labelValues)
+			c.deleteGaugeLabelValues(c.AssignedLeaderSlotsGauge, "leader-slots-by-epoch", nodekey, epochStr, status)
 		}
 	}
 	
@@ -517,12 +502,9 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, startSlot
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		c.AssignedLeaderSlotsMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
-		c.AssignedLeaderSlotsMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
+		c.AssignedLeaderSlotsGauge.Set(float64(len(leaderSchedule[address])))
 
 		if slices.Contains(c.config.NodeKeys, address) || c.config.ComprehensiveSlotTracking {
-			c.AssignedLeaderSlotsMetric.WithLabelValues(address, epochStr, StatusValid).Add(valid)
-			c.AssignedLeaderSlotsMetric.WithLabelValues(address, epochStr, StatusSkipped).Add(skipped)
 			nodekeys = append(nodekeys, address)
 		}
 
