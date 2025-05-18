@@ -152,12 +152,10 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 	if !config.LightMode {
 		collectorsToRegister = append(collectorsToRegister,
 			watcher.AssignedLeaderSlotsGauge,
+			watcher.LeaderSlotsProcessedEpochGauge,
+			watcher.LeaderSlotsSkippedEpochGauge,
 		)
 	}
-	collectorsToRegister = append(collectorsToRegister,
-		watcher.LeaderSlotsProcessedEpochGauge,
-		watcher.LeaderSlotsSkippedEpochGauge,
-	)
 	for _, collector := range collectorsToRegister {
 		if err := prometheus.Register(collector); err != nil {
 			var (
