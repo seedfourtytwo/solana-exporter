@@ -502,8 +502,6 @@ func (c *SlotWatcher) fetchAndEmitBlockProduction(ctx context.Context, startSlot
 		valid := float64(production.BlocksProduced)
 		skipped := float64(production.LeaderSlots - production.BlocksProduced)
 
-		c.AssignedLeaderSlotsGauge.Set(float64(len(leaderSchedule[address])))
-
 		if slices.Contains(c.config.NodeKeys, address) || c.config.ComprehensiveSlotTracking {
 			nodekeys = append(nodekeys, address)
 		}
