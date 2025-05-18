@@ -351,3 +351,47 @@ The table below describes the various metric labels:
 | `status`           | Whether a slot was skipped or valid.          | `valid`, `skipped`                                   |
 | `epoch`            | Solana epoch number.                          | e.g., `663`                                          |
 | `transaction_type` | General transaction type.                     | `vote`, `non_vote`                                   |
+
+## Quick Start Example
+
+```bash
+solana-exporter \
+  -rpc-url <YOUR_RPC_URL_HERE> \
+  -listen-address 0.0.0.0:9101 \
+  -validator-identity <VALIDATOR_IDENTITY> \
+  -vote-account-pubkey <VOTE_ACCOUNT_PUBKEY> \
+  -slot-pace 15
+```
+
+> **WARNING:**
+> - Always set your own `-rpc-url` (do **not** use a public or default endpoint in production).
+> - Never commit or share your private RPC endpoint in public repositories or forums.
+> - If you suspect your endpoint is leaked, rotate it immediately.
+
+## New Features & Changes (2024)
+
+### 1. **Default Slot Pace is Now 15 Seconds**
+- The exporter collects slot metrics every 15 seconds by default (`-slot-pace 15`).
+- This reduces RPC and credit usage and matches typical Prometheus scrape intervals.
+
+### 2. **RPC Call Logging**
+- The exporter now logs the number of RPC calls made per method every minute.
+- Example log output:
+  ```
+  === SOLANA RPC CALLS IN LAST MINUTE ===
+  getBlockProduction: 16
+  getSlot: 24
+  ...
+  ```
+- Use these logs to monitor and optimize your RPC usage.
+
+### 3. **Per-Slot Granularity for Leader Slot Metrics**
+- The exporter maintains per-slot granularity for leader slot metrics (processed/skipped),
+  calling `getBlockProduction` for each leader slot individually.
+- This ensures maximum accuracy for validator performance metrics.
+- **Note:** This is more expensive in RPC/credits than batching, but provides the most detail.
+
+### 4. **Optimizing RPC/Credit Usage**
+- Increase `-slot-pace` to reduce frequency of expensive calls (e.g., 30s or 60s for lower cost).
+- Only monitor the metrics you need.
+- Use a dedicated, private RPC endpoint and rotate it if you suspect abuse.
