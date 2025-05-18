@@ -207,8 +207,8 @@ func NewExporterConfigFromCLI(ctx context.Context) (*ExporterConfig, error) {
 	flag.IntVar(
 		&slotPace,
 		"slot-pace",
-		5,
-		"This is the time (in seconds) between slot-watching metric collections, defaults to 5s.",
+		15,
+		"This is the time (in seconds) between slot-watching metric collections, defaults to 15s.",
 	)
 	flag.IntVar(
 		&epochCleanupTime,

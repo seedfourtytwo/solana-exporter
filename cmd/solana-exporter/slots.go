@@ -433,7 +433,6 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 		c.logger.Fatalf("invalid slot range: %v", err)
 	}
 
-	// Only process for our validator's nodekey
 	validatorNodekey := c.config.ValidatorIdentity
 	if validatorNodekey == "" {
 		c.logger.Warn("Validator identity not set, cannot process leader slots for validator.")
@@ -453,24 +452,27 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 		return
 	}
 
-	// For each slot, check if it was produced or skipped
+	// Batch: Call getBlockProduction once for the full range
+	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, startSlot, endSlot)
+	if err != nil {
+		c.logger.Errorf("Failed to get block production for range %d-%d: %v", startSlot, endSlot, err)
+		return
+	}
+
+	// For each leader slot, check if it was produced or skipped
 	blocksProduced := 0
 	slotsSkipped := 0
 	for _, slot := range leaderSlots {
 		if slot > endSlot {
 			continue // skip slots beyond the allowed range
 		}
-		blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, slot, slot)
-		if err != nil {
-			c.logger.Errorf("Failed to get block production for slot %d: %v", slot, err)
-			continue
-		}
-		prod, ok := blockProduction.ByIdentity[validatorNodekey]
+		prod, ok := blockProduction.BySlot[slot]
 		if !ok {
-			c.logger.Debugf("No block production info for validator %s at slot %d", validatorNodekey, slot)
+			c.logger.Debugf("No block production info for slot %d", slot)
+			slotsSkipped++ // treat as skipped if not found
 			continue
 		}
-		if prod.BlocksProduced > 0 {
+		if prod.Leader == validatorNodekey && prod.BlocksProduced > 0 {
 			blocksProduced++
 		} else {
 			slotsSkipped++
@@ -478,7 +480,7 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	}
 	c.LeaderSlotsProcessedEpochGauge.Add(float64(blocksProduced))
 	c.LeaderSlotsSkippedEpochGauge.Add(float64(slotsSkipped))
-	c.logger.Infof("Updated per-epoch leader slot gauges: processed=%d, skipped=%d", blocksProduced, slotsSkipped)
+	c.logger.Infof("Updated per-epoch leader slot gauges (batched): processed=%d, skipped=%d", blocksProduced, slotsSkipped)
 }
 
 // fetchAndEmitBlockProduction fetches block production from startSlot up to the provided endSlot [inclusive],
