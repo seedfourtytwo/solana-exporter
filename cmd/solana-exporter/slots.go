@@ -348,9 +348,6 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 	}
 	for _, status := range []string{StatusValid, StatusSkipped} {
 		c.deleteMetricLabelValues(c.ClusterSlotsByEpochMetric, "cluster-slots-by-epoch", epochStr, status)
-		for _, nodekey := range trackedNodekeys {
-			c.deleteGaugeLabelValues(c.AssignedLeaderSlotsGauge, "leader-slots-by-epoch", nodekey, epochStr, status)
-		}
 	}
 	
 	c.logger.Infof("Finished cleaning epoch %d", epoch)
@@ -643,14 +640,6 @@ func (c *SlotWatcher) fetchAndEmitInflationRewards(ctx context.Context, epoch in
 }
 
 func (c *SlotWatcher) deleteMetricLabelValues(metric *prometheus.CounterVec, name string, lvs ...string) {
-	c.logger.Debugf("deleting %v with lv %v", name, lvs)
-	if ok := metric.DeleteLabelValues(lvs...); !ok {
-		c.logger.Errorf("Failed to delete %s with label values %v", name, lvs)
-	}
-}
-
-// Add this function for deleting label values from GaugeVec
-func (c *SlotWatcher) deleteGaugeLabelValues(metric *prometheus.GaugeVec, name string, lvs ...string) {
 	c.logger.Debugf("deleting %v with lv %v", name, lvs)
 	if ok := metric.DeleteLabelValues(lvs...); !ok {
 		c.logger.Errorf("Failed to delete %s with label values %v", name, lvs)
