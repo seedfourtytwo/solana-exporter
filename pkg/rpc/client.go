@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
@@ -50,6 +51,29 @@ const (
 	MainnetGenesisHash = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
 )
 
+// Global map to count RPC calls per method
+var rpcCallCounts = make(map[string]*int64)
+var rpcCallCountsLock = make(chan struct{}, 1)
+
+func init() {
+	// Start a goroutine to log the counts every minute
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			rpcCallCountsLock <- struct{}{} // lock
+			logger := slog.Get()
+			logger.Infof("=== SOLANA RPC CALLS IN LAST MINUTE ===")
+			for method, countPtr := range rpcCallCounts {
+				count := atomic.SwapInt64(countPtr, 0)
+				logger.Infof("%s: %d", method, count)
+			}
+			<-rpcCallCountsLock // unlock
+		}
+	}()
+}
+
 // GetClusterFromGenesisHash returns the cluster name based on the genesis hash
 func GetClusterFromGenesisHash(hash string) (string, error) {
 	switch hash {
@@ -72,6 +96,15 @@ func getResponse[T any](
 	ctx context.Context, client *Client, method string, params []any, rpcResponse *Response[T],
 ) error {
 	logger := slog.Get()
+	// Count and log the call
+	rpcCallCountsLock <- struct{}{} // lock
+	if _, ok := rpcCallCounts[method]; !ok {
+		var zero int64
+		rpcCallCounts[method] = &zero
+	}
+	atomic.AddInt64(rpcCallCounts[method], 1)
+	<-rpcCallCountsLock // unlock
+	logger.Debugf("SOLANA RPC CALL: method=%s params=%v", method, params)
 	// format request:
 	request := &Request{Jsonrpc: "2.0", Id: 1, Method: method, Params: params}
 	buffer, err := json.Marshal(request)
