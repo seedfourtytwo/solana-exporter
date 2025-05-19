@@ -373,6 +373,10 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 		addressesToTrack = append(addressesToTrack, c.config.VoteAccountPubkey)
 	}
 	
+	// Log the addresses being tracked and their count
+	c.logger.Infof("Tracking balances for addresses: %v", addressesToTrack)
+	c.logger.Infof("Total unique addresses being tracked: %d", len(addressesToTrack))
+	
 	if len(addressesToTrack) == 0 {
 		c.logger.Info("No addresses to track balances for, skipping balance collection.")
 		return
