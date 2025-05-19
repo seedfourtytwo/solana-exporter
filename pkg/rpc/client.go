@@ -81,6 +81,14 @@ var (
 	minimumLedgerSlotCacheMutex sync.Mutex
 )
 
+// FirstAvailableBlock cache and mutex
+var (
+	firstAvailableBlockCache     int64
+	firstAvailableBlockCacheTime time.Time
+	firstAvailableBlockCacheSet  bool
+	firstAvailableBlockCacheMutex sync.Mutex
+)
+
 func init() {
 	// Start a goroutine to log the counts every minute
 	go func() {
@@ -378,13 +386,21 @@ func (c *Client) GetMinimumLedgerSlot(ctx context.Context) (int64, error) {
 }
 
 // GetFirstAvailableBlock returns the slot of the lowest confirmed block that has not been purged from the ledger
-// See API docs: https://solana.com/docs/rpc/http/getfirstavailableblock
+// Now uses a 10-minute cache to reduce redundant calls.
 func (c *Client) GetFirstAvailableBlock(ctx context.Context) (int64, error) {
+	firstAvailableBlockCacheMutex.Lock()
+	defer firstAvailableBlockCacheMutex.Unlock()
+	if firstAvailableBlockCacheSet && time.Since(firstAvailableBlockCacheTime) < 10*time.Minute {
+		return firstAvailableBlockCache, nil
+	}
 	var resp Response[int64]
 	if err := getResponse(ctx, c, "getFirstAvailableBlock", []any{}, &resp); err != nil {
 		return 0, err
 	}
-	return resp.Result, nil
+	firstAvailableBlockCache = resp.Result
+	firstAvailableBlockCacheTime = time.Now()
+	firstAvailableBlockCacheSet = true
+	return firstAvailableBlockCache, nil
 }
 
 // GetGenesisHash returns the hash of the genesis block
