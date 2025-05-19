@@ -190,6 +190,12 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 			return
 		default:
 			<-ticker.C
+			// Fetch current slot once per tick
+			currentSlot, err := c.client.GetSlot(ctx, rpc.CommitmentFinalized)
+			if err != nil {
+				c.logger.Errorf("Failed to get current slot: %v", err)
+				continue
+			}
 			// TODO: separate fee-rewards watching from general slot watching, such that general slot watching commitment level can be dropped to confirmed
 			commitment := rpc.CommitmentFinalized
 			epochInfo, err := c.client.GetEpochInfo(ctx, commitment)
@@ -222,17 +228,13 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 			}
 
 			if epochInfo.Epoch > c.currentEpoch {
-				c.closeCurrentEpoch(ctx, epochInfo)
+				c.closeCurrentEpoch(ctx, epochInfo, currentSlot)
 			}
 
 			// update block production metrics up until the current slot:
 			// Only move the slot watermark in light mode if we need to for epoch tracking
-			// In regular mode, we move it for all metrics
-			if !c.config.LightMode || epochInfo.Epoch > c.currentEpoch {
-				c.moveSlotWatermark(ctx, epochInfo.AbsoluteSlot)
-			} else if c.config.LightMode {
-				// In light mode, just update the watermark without collecting metrics
-				c.slotWatermark = epochInfo.AbsoluteSlot
+			if !c.config.LightMode {
+				c.moveSlotWatermark(ctx, c.slotWatermark+1, currentSlot)
 			}
 		}
 	}
@@ -333,7 +335,7 @@ func (c *SlotWatcher) cleanEpoch(ctx context.Context, epoch int64) {
 
 // closeCurrentEpoch is called when an epoch change-over happens, and we need to make sure we track the last
 // remaining slots in the "current" epoch before we start tracking the new one.
-func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo) {
+func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.EpochInfo, currentSlot int64) {
 	c.logger.Infof("Closing current epoch %v, moving into epoch %v", c.currentEpoch, newEpoch.Epoch)
 
 	// On epoch transition, reset the per-epoch gauges and slot sets
@@ -350,7 +352,7 @@ func (c *SlotWatcher) closeCurrentEpoch(ctx context.Context, newEpoch *rpc.Epoch
 				c.logger.Errorf("Failed to emit inflation rewards, bailing out: %v", err)
 			}
 		}
-		c.moveSlotWatermark(ctx, c.lastSlot)
+		c.moveSlotWatermark(ctx, c.lastSlot, currentSlot)
 		go c.cleanEpoch(ctx, c.currentEpoch)
 	}
 	c.trackEpoch(ctx, newEpoch)
@@ -372,16 +374,16 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 }
 
 // moveSlotWatermark performs all the slot-watching tasks required to move the slotWatermark to the provided 'to' slot.
-func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64) {
+func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64, currentSlot int64) {
 	c.logger.Infof("Moving watermark %v -> %v", c.slotWatermark, to)
 	startSlot := c.slotWatermark + 1
-	c.processLeaderSlotsForValidator(ctx, startSlot, to)
+	c.processLeaderSlotsForValidator(ctx, startSlot, to, currentSlot)
 	c.fetchAndEmitBlockInfos(ctx, startSlot, to)
 	c.slotWatermark = to
 }
 
 // New function to process leader slots for the validator and update gauges
-func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startSlot, endSlot int64) {
+func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startSlot, endSlot, currentSlot int64) {
 	if c.config.LightMode {
 		c.logger.Debug("Skipping leader slot processing in light mode.")
 		return
@@ -389,11 +391,6 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	c.logger.Debugf("Processing leader slots for validator in [%v -> %v]", startSlot, endSlot)
 
 	// Patch: Ensure we do not request slots beyond the current slot
-	currentSlot, err := c.client.GetSlot(ctx, rpc.CommitmentFinalized)
-	if err != nil {
-		c.logger.Errorf("Failed to get current slot: %v", err)
-		return
-	}
 	if endSlot > currentSlot {
 		c.logger.Warnf("endSlot %d is greater than currentSlot %d, adjusting endSlot", endSlot, currentSlot)
 		endSlot = currentSlot

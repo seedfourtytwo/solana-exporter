@@ -474,21 +474,12 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 }
 
 // Collects both vote distance and root distance in a single call to ensure consistency
-func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch chan<- prometheus.Metric, voteAccounts *rpc.VoteAccounts) {
+func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch chan<- prometheus.Metric, voteAccounts *rpc.VoteAccounts, currentSlot int64) {
 	c.logger.Debug("Collecting vote and root distance metrics...")
 
 	// Only proceed if we have a valid identity to monitor
 	if c.config.ValidatorIdentity == "" {
 		c.logger.Debug("Skipping vote/root distance collection - no validator identity configured.")
-		return
-	}
-
-	// Get current slot
-	currentSlot, err := c.rpcClient.GetSlot(ctx, rpc.CommitmentConfirmed)
-	if err != nil {
-		c.logger.Errorf("failed to get current slot: %v", err)
-		ch <- c.ValidatorVoteDistance.NewInvalidMetric(err)
-		ch <- c.ValidatorRootDistance.NewInvalidMetric(err)
 		return
 	}
 
@@ -568,7 +559,8 @@ func (c *SolanaCollector) StartFastMetricsCollection(interval time.Duration) {
 				go func() {
 					defer close(tempCh)
 					voteAccounts, _ := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
-					c.collectVoteAndRootDistance(ctx, tempCh, voteAccounts)
+					currentSlot, _ := c.rpcClient.GetSlot(ctx, rpc.CommitmentConfirmed)
+					c.collectVoteAndRootDistance(ctx, tempCh, voteAccounts, currentSlot)
 				}()
 				
 				// Collect metrics from the temporary channel, storing only the latest value for each metric
@@ -637,10 +629,15 @@ done:
 		voteAccounts, _ = c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
 	}
 
+	var currentSlot int64
+	if !c.config.LightMode {
+		currentSlot, _ = c.rpcClient.GetSlot(ctx, rpc.CommitmentConfirmed)
+	}
+
 	// Only collect vote/root distance if fast metrics collection is disabled
 	// If fast metrics are enabled, those metrics are ONLY collected via the fast path
 	if c.config.FastMetricsInterval == 0 {
-		c.collectVoteAndRootDistance(ctx, ch, voteAccounts)
+		c.collectVoteAndRootDistance(ctx, ch, voteAccounts, currentSlot)
 	}
 
 	c.logger.Info("Collecting health metrics...")

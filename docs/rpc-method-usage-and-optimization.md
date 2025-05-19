@@ -221,4 +221,25 @@ Instead of calling `getVersion` every 15s, cache the value and only refresh it e
 | getVersion            | 3               |
 | getBalance            | 15              |
 
+---
+
+### Recent Optimization: getVoteAccounts Deduplication
+
+- **What was changed:**
+  - `getVoteAccounts` is now fetched once per scrape and shared across all metrics that need it.
+- **Impact:**
+  - Calls per minute dropped from ~32 to 7 (about a 78% reduction).
+  - This saves significant API credits and reduces load on the RPC provider.
+
+---
+
+## Next Best Candidate for Deduplication: getSlot
+
+- **Observation:**
+  - `getSlot` is still called 22 times per minute, only a small reduction from before (24/min).
+- **Why:**
+  - Multiple metrics/functions likely call `getSlot` independently within a scrape.
+- **Plan:**
+  - Next, deduplicate `getSlot` by fetching it once per scrape and sharing the value across all metrics that need it.
+
 --- 
