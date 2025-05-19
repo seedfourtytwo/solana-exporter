@@ -177,7 +177,6 @@ func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 	for _, collector := range collectorsToRegister {
 		logger.Debugf("Registered collector type: %T", collector)
 	}
-	go watcher.pollInflationRewards(context.Background())
 	return &watcher
 }
 
@@ -592,77 +591,6 @@ func (c *SlotWatcher) deleteMetricLabelValues(metric *prometheus.CounterVec, nam
 	if ok := metric.DeleteLabelValues(lvs...); !ok {
 		c.logger.Errorf("Failed to delete %s with label values %v", name, lvs)
 	}
-}
-
-// Polling goroutine for inflation rewards
-func (c *SlotWatcher) pollInflationRewards(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Minute)
-	defer ticker.Stop()
-	for {
-		c.fetchAndEmitRecentInflationRewards(ctx)
-		select {
-		case <-ticker.C:
-			continue
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// Fetch and emit rewards for the last 3 epochs
-func (c *SlotWatcher) fetchAndEmitRecentInflationRewards(ctx context.Context) {
-	epochInfo, err := c.client.GetEpochInfo(ctx, rpc.CommitmentConfirmed)
-	if err != nil {
-		c.logger.Errorf("Failed to get epoch info: %v", err)
-		return
-	}
-	currentEpoch := epochInfo.Epoch
-	for epoch := currentEpoch - 3; epoch < currentEpoch; epoch++ {
-		c.fetchAndEmitInflationRewardsWithDedup(ctx, epoch)
-	}
-}
-
-// Wrapper to deduplicate emission
-func (c *SlotWatcher) fetchAndEmitInflationRewardsWithDedup(ctx context.Context, epoch int64) {
-	if c.config.LightMode {
-		c.logger.Debug("Skipping inflation-rewards fetching in light mode.")
-		return
-	}
-	c.logger.Infof("Polling: Fetching inflation reward for epoch %v ...", toString(epoch))
-	rewardInfos, err := c.client.GetInflationReward(ctx, rpc.CommitmentConfirmed, c.config.VoteKeys, epoch)
-	if err != nil {
-		c.logger.Errorf("Polling: error fetching inflation rewards: %v", err)
-		return
-	}
-	for i, rewardInfo := range rewardInfos {
-		if i >= len(c.config.VoteKeys) {
-			c.logger.Debugf("Polling: Array index out of bounds! i=%d, VoteKeys length=%d", i, len(c.config.VoteKeys))
-			continue
-		}
-		address := c.config.VoteKeys[i]
-		key := address + "-" + toString(epoch)
-		if _, already := c.emittedInflationRewards[key]; already {
-			c.logger.Debugf("Polling: Already emitted reward for %s in epoch %s", address, toString(epoch))
-			continue
-		}
-		if rewardInfo.Amount == 0 && rewardInfo.Epoch == 0 {
-			c.logger.Debugf("Polling: Reward info is zero value for address %s at index %d", address, i)
-			continue
-		}
-		reward := float64(rewardInfo.Amount) / rpc.LamportsInSol
-		c.logger.Debugf("Polling: About to add reward %f SOL for address %s in epoch %s", reward, address, toString(epoch))
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					c.logger.Errorf("Polling: PANIC in metric emission: %v", r)
-				}
-			}()
-			c.InflationRewardsMetric.WithLabelValues(address, toString(epoch)).Add(reward)
-		}()
-		c.emittedInflationRewards[key] = struct{}{}
-		c.logger.Debugf("Polling: Added reward metric with labels address=%s, epoch=%s", address, toString(epoch))
-	}
-	c.logger.Infof("Polling: Fetched inflation reward for epoch %v.", epoch)
 }
 
 // FetchLeaderSchedule fetches the leader schedule for the current epoch, using a cache to avoid redundant RPC calls.

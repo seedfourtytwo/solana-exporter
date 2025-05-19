@@ -10,7 +10,7 @@ This document explains the purpose, usage, and optimization opportunities for ea
 |-----------------------|------------------------------------|-------------------------------|-------------------|
 | getVoteAccounts       | Deduplicated per scrape            | Fetched once per scrape       | ~28               |
 | getSlot               | Deduplicated per scrape/tick       | Fetched once per scrape/tick  | ~28               |
-| getBalance            | Deduplicated per unique address    | Once per address per scrape   | ~20               |
+| getBalance            | 1-min cache per address              | Cached for 1 min, refreshed if expired | ~1 (per address)      |
 | getBlockProduction    | Deduplicated per tick              | Once per tick                 | ~4                |
 | getLeaderSchedule     | Cached per epoch                   | Only on epoch change/restart  | ~0                |
 | getEpochInfo          | Globally cached (15s)              | Shared cache, 15s TTL         | ~2                |
@@ -37,8 +37,8 @@ This document explains the purpose, usage, and optimization opportunities for ea
 
 ### getBalance
 - **Purpose:** Returns the SOL balance for an account.
-- **Optimization:** Fetched once per unique address per scrape. Addresses are deduplicated before fetching.
-- **Rationale:** Each address only needs to be checked once per scrape. Deduplication reduces unnecessary calls, especially if addresses overlap in config.
+- **Optimization:** Now cached for 1 minute per address. All scrapes within 1 minute use the cached value; after 1 minute, a fresh value is fetched for each address.
+- **Rationale:** SOL balances do not change rapidly for most use cases. Caching for 1 minute dramatically reduces RPC calls (by up to 90% or more) while keeping metrics sufficiently fresh for alerting and dashboards. This allows you to keep a fast scrape interval for other metrics without incurring high API usage for balances.
 
 ### getBlockProduction
 - **Purpose:** Returns recent block production info.
@@ -90,7 +90,7 @@ This document explains the purpose, usage, and optimization opportunities for ea
 ## Notes
 - **Call rates** are approximate and depend on your scrape/tick intervals and number of tracked addresses.
 - **After these optimizations, your exporter is highly efficient and cost-effective for RPC usage.**
-- For further reductions, consider increasing your scrape interval, but be aware this may reduce metric freshness.
+- For further reductions, consider increasing your scrape interval, but be aware this may reduce metric freshness. **With 1-minute balance caching, you can keep a fast scrape interval for all other metrics.**
 
 ---
 
