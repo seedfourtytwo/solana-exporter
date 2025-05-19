@@ -173,7 +173,6 @@ The exporter's `-light-mode` flag has been significantly enhanced to eliminate a
 | solana_node_slot_height            | Current slot number                                                |
 | solana_validator_current_epoch_credits* | Current epoch credits (with validator identity params)        |
 | solana_validator_total_credits*    | Total accumulated credits (with validator identity params)         |
-| solana_validator_assigned_leader_slots* | Total leader slots assigned in the current epoch schedule     |
 
 *Only available when using `-validator-identity` and `-vote-account-pubkey`
 
@@ -262,42 +261,47 @@ The exporter is configured via the following command line arguments:
 ## Metrics
 ### Overview
 
-The tables below describes all the metrics collected by the `solana-exporter`:
+The tables below describe all the metrics collected by the `solana-exporter`:
 
-| Metric                                         | Description                                                                                                           | Labels                        |
-|------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| `solana_validator_active_stake`                | Active stake (in SOL) per validator.                                                                                  | `votekey`, `nodekey`          |
-| `solana_cluster_active_stake`                  | Total active stake (in SOL) of the cluster.                                                                           | N/A                           |
-| `solana_validator_last_vote`                   | Last voted-on slot per validator.                                                                                     | `votekey`, `nodekey`          |
-| `solana_cluster_last_vote`                     | Most recent voted-on slot of the cluster.                                                                             | N/A                           |
-| `solana_validator_root_slot`                   | Root slot per validator.                                                                                              | `votekey`, `nodekey`          |
-| `solana_cluster_root_slot`                     | Max root slot of the cluster.                                                                                         | N/A                           |
-| `solana_validator_delinquent`                  | Whether a validator is delinquent.                                                                                    | `votekey`, `nodekey`          |
-| `solana_cluster_validator_count`               | Total number of validators in the cluster.                                                                            | `state`                       |
-| `solana_account_balance`                       | Solana account balances.                                                                                              | `address`                     |
-| `solana_node_version`                          | Node version of solana.                                                                                               | `version`                     |
-| `solana_node_is_healthy`                       | Whether the node is healthy.                                                                                          | N/A                           |
-| `solana_node_num_slots_behind`                 | The number of slots that the node is behind the latest cluster confirmed slot.                                        | N/A                           |
-| `solana_node_minimum_ledger_slot`              | The lowest slot that the node has information about in its ledger.                                                    | N/A                           |
-| `solana_node_first_available_block`            | The slot of the lowest confirmed block that has not been purged from the node's ledger.                               | N/A                           |
-| `solana_node_transactions_total`               | Total number of transactions processed without error since genesis.                                                   | N/A                           |
-| `solana_node_slot_height`                      | The current slot number.                                                                                              | N/A                           |
-| `solana_node_epoch_number`                     | The current epoch number.                                                                                             | N/A                           |
-| `solana_node_epoch_first_slot`                 | Current epoch's first slot \[inclusive\].                                                                             | N/A                           |
-| `solana_node_epoch_last_slot`                  | Current epoch's last slot \[inclusive\].                                                                             | N/A                           |
-| `solana_validator_leader_slots_total`          | Number of slots processed.                                                                                            | `status`, `nodekey`           |
-| `solana_validator_leader_slots_by_epoch_total` | Number of slots processed per validator.                                                                              | `status`, `nodekey`, `epoch`  |
-| `solana_cluster_slots_by_epoch_total`          | Number of slots processed by the cluster.                                                                             | `status`, `epoch`             |
-| `solana_validator_inflation_rewards`           | Inflation reward earned.                                                                                              | `votekey`, `epoch`            |
-| `solana_validator_fee_rewards`                 | Transaction fee rewards earned.                                                                                       | `nodekey`, `epoch`            |
-| `solana_validator_block_size`                  | Number of transactions per block.                                                                                     | `nodekey`, `transaction_type` |
-| `solana_node_block_height`                     | The current block height of the node.                                                                                 | N/A                           |
-| `solana_node_is_active`                        | Whether the node is active and participating in consensus.                                                            | `identity`                    |
-| `solana_validator_commission`                  | Validator commission percentage rate (0-100).                                                                         | `nodekey`                     |
-| `solana_validator_current_epoch_credits`       | Current epoch credits for the validator.                                                                              | `nodekey`                     |
-| `solana_validator_total_credits`               | Total accumulated credits for the validator since genesis.                                                            | `nodekey`                     |
-| `solana_validator_vote_distance`               | Gap between current slot and last vote (lower is better).                                                             | `identity`                    |
-| `solana_validator_root_distance`               | Gap between last vote and root slot (tower stability metric).                                                         | `identity`                    |
+| Metric                                         | Description                                                                                                           | Labels                        | Mode  |
+|------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|-------------------------------|-------|
+| `solana_validator_active_stake`                | Active stake (in SOL) per validator.                                                                                  | `votekey`, `nodekey`          | Full  |
+| `solana_cluster_active_stake`                  | Total active stake (in SOL) of the cluster.                                                                           | N/A                           | Full  |
+| `solana_validator_last_vote`                   | Last voted-on slot per validator.                                                                                     | `votekey`, `nodekey`          | Full  |
+| `solana_cluster_last_vote`                     | Most recent voted-on slot of the cluster.                                                                             | N/A                           | Full  |
+| `solana_validator_root_slot`                   | Root slot per validator.                                                                                              | `votekey`, `nodekey`          | Full  |
+| `solana_cluster_root_slot`                     | Max root slot of the cluster.                                                                                         | N/A                           | Full  |
+| `solana_validator_delinquent`                  | Whether a validator is delinquent.                                                                                    | `votekey`, `nodekey`          | Full  |
+| `solana_cluster_validator_count`               | Total number of validators in the cluster.                                                                            | `state`                       | Full  |
+| `solana_account_balance`                       | Solana account balances.                                                                                              | `address`                     | Both  |
+| `solana_node_version`                          | Node version of solana.                                                                                               | `version`                     | Both  |
+| `solana_node_is_healthy`                       | Whether the node is healthy.                                                                                          | N/A                           | Both  |
+| `solana_node_num_slots_behind`                 | The number of slots that the node is behind the latest cluster confirmed slot.                                        | N/A                           | Both  |
+| `solana_node_minimum_ledger_slot`              | The lowest slot that the node has information about in its ledger.                                                    | N/A                           | Both  |
+| `solana_node_first_available_block`            | The slot of the lowest confirmed block that has not been purged from the node's ledger.                               | N/A                           | Both  |
+| `solana_node_transactions_total`               | Total number of transactions processed without error since genesis.                                                   | N/A                           | Both  |
+| `solana_node_slot_height`                      | The current slot number.                                                                                              | N/A                           | Both  |
+| `solana_node_epoch_number`                     | The current epoch number.                                                                                             | N/A                           | Both  |
+| `solana_node_epoch_first_slot`                 | Current epoch's first slot [inclusive].                                                                               | N/A                           | Full  |
+| `solana_node_epoch_last_slot`                  | Current epoch's last slot [inclusive].                                                                                | N/A                           | Full  |
+| `solana_validator_leader_slots_total`          | Number of slots processed.                                                                                            | `status`, `nodekey`           | Full  |
+| `solana_validator_leader_slots_by_epoch_total` | Number of slots processed per validator.                                                                              | `status`, `nodekey`, `epoch`  | Full  |
+| `solana_cluster_slots_by_epoch_total`          | Number of slots processed by the cluster.                                                                             | `status`, `epoch`             | Full  |
+| `solana_validator_inflation_rewards`           | Inflation reward earned.                                                                                              | `votekey`, `epoch`            | Full  |
+| `solana_validator_fee_rewards`                 | Transaction fee rewards earned.                                                                                       | `nodekey`, `epoch`            | Full  |
+| `solana_validator_block_size`                  | Number of transactions per block.                                                                                     | `nodekey`, `transaction_type` | Full  |
+| `solana_node_block_height`                     | The current block height of the node.                                                                                 | N/A                           | Both  |
+| `solana_node_is_active`                        | Whether the node is active and participating in consensus.                                                            | `identity`                    | Both  |
+| `solana_validator_commission`                  | Validator commission percentage rate (0-100).                                                                         | `nodekey`                     | Full  |
+| `solana_validator_current_epoch_credits`       | Current epoch credits for the validator.                                                                              | `nodekey`                     | Both* |
+| `solana_validator_total_credits`               | Total accumulated credits for the validator since genesis.                                                            | `nodekey`                     | Both* |
+| `solana_validator_vote_distance`               | Gap between current slot and last vote (lower is better).                                                             | `identity`                    | Both  |
+| `solana_validator_root_distance`               | Gap between last vote and root slot (tower stability metric).                                                         | `identity`                    | Both  |
+| `solana_validator_assigned_leader_slots`       | Number of leader slots assigned in the schedule for the current epoch for this validator.                             | N/A                           | Full  |
+| `solana_validator_leader_slots_processed_epoch`| Number of leader slots processed (valid) by this validator in the current epoch.                                      | N/A                           | Full  |
+| `solana_validator_leader_slots_skipped_epoch`  | Number of leader slots skipped by this validator in the current epoch.                                                | N/A                           | Full  |
+
+*Only available in light mode when using `-validator-identity` and `-vote-account-pubkey`
 
 ### Validator Performance Metrics
 

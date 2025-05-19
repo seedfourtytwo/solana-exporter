@@ -226,14 +226,14 @@ func (c *SolanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.logger.Info("All metrics described")
 }
 
-func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric) {
+func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- prometheus.Metric, voteAccounts *rpc.VoteAccounts) {
 	if c.config.LightMode {
 		c.logger.Debug("Skipping vote-accounts collection in light mode.")
 		return
 	}
 	c.logger.Info("Collecting vote accounts...")
-	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
-	if err != nil {
+	if voteAccounts == nil {
+		err := fmt.Errorf("voteAccounts is nil")
 		c.logger.Errorf("failed to get vote accounts: %v", err)
 		ch <- c.ValidatorActiveStake.NewInvalidMetric(err)
 		ch <- c.ClusterActiveStake.NewInvalidMetric(err)
@@ -424,16 +424,16 @@ func (c *SolanaCollector) collectValidatorCredits(ctx context.Context, ch chan<-
 	c.logger.Info("Validator credits metrics emitted successfully")
 }
 
-func (c *SolanaCollector) collectValidatorCommission(ctx context.Context, ch chan<- prometheus.Metric) {
+func (c *SolanaCollector) collectValidatorCommission(ctx context.Context, ch chan<- prometheus.Metric, voteAccounts *rpc.VoteAccounts) {
 	// In light mode, always skip commission collection for consistency and efficiency
 	if c.config.LightMode {
 		c.logger.Debug("Skipping validator commission collection in light mode.")
 		return
 	}
-	
+
 	c.logger.Info("Collecting validator commission rates...")
-	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
-	if err != nil {
+	if voteAccounts == nil {
+		err := fmt.Errorf("voteAccounts is nil")
 		c.logger.Errorf("failed to get vote accounts for commission data: %v", err)
 		ch <- c.ValidatorCommission.NewInvalidMetric(err)
 		return
@@ -446,7 +446,7 @@ func (c *SolanaCollector) collectValidatorCommission(ctx context.Context, ch cha
 			c.logger.Debugf("Collected commission rate %d%% for validator %s", account.Commission, account.NodePubkey)
 		}
 	}
-	
+
 	c.logger.Info("Validator commission rates collected.")
 }
 
@@ -474,15 +474,15 @@ func (c *SolanaCollector) collectHealth(ctx context.Context, ch chan<- prometheu
 }
 
 // Collects both vote distance and root distance in a single call to ensure consistency
-func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch chan<- prometheus.Metric) {
+func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch chan<- prometheus.Metric, voteAccounts *rpc.VoteAccounts) {
 	c.logger.Debug("Collecting vote and root distance metrics...")
-	
+
 	// Only proceed if we have a valid identity to monitor
 	if c.config.ValidatorIdentity == "" {
 		c.logger.Debug("Skipping vote/root distance collection - no validator identity configured.")
 		return
 	}
-	
+
 	// Get current slot
 	currentSlot, err := c.rpcClient.GetSlot(ctx, rpc.CommitmentConfirmed)
 	if err != nil {
@@ -491,20 +491,19 @@ func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch cha
 		ch <- c.ValidatorRootDistance.NewInvalidMetric(err)
 		return
 	}
-	
-	// Get vote accounts to find the last vote and root slot for our validator
-	voteAccounts, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
-	if err != nil {
+
+	if voteAccounts == nil {
+		err := fmt.Errorf("voteAccounts is nil")
 		c.logger.Errorf("failed to get vote accounts: %v", err)
 		ch <- c.ValidatorVoteDistance.NewInvalidMetric(err)
 		ch <- c.ValidatorRootDistance.NewInvalidMetric(err)
 		return
 	}
-	
+
 	// Find our validator in the vote accounts
 	var lastVote, rootSlot int64
 	found := false
-	
+
 	// Look in both current and delinquent validators
 	for _, accounts := range [][]rpc.VoteAccount{voteAccounts.Current, voteAccounts.Delinquent} {
 		for _, account := range accounts {
@@ -520,7 +519,7 @@ func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch cha
 			break
 		}
 	}
-	
+
 	if !found {
 		errMsg := fmt.Sprintf("validator not found in vote accounts with identity %s or vote account %s", 
 			c.config.ValidatorIdentity, c.config.VoteAccountPubkey)
@@ -529,15 +528,15 @@ func (c *SolanaCollector) collectVoteAndRootDistance(ctx context.Context, ch cha
 		ch <- c.ValidatorRootDistance.NewInvalidMetric(fmt.Errorf(errMsg))
 		return
 	}
-	
+
 	// Calculate distances
 	voteDistance := float64(currentSlot - lastVote)
 	rootDistance := float64(lastVote - rootSlot)
-	
+
 	// Export metrics
 	ch <- c.ValidatorVoteDistance.MustNewConstMetric(voteDistance, c.config.ValidatorIdentity)
 	ch <- c.ValidatorRootDistance.MustNewConstMetric(rootDistance, c.config.ValidatorIdentity)
-	
+
 	c.logger.Debugf("Collected metrics - Vote distance: %f, Root distance: %f", voteDistance, rootDistance)
 }
 
@@ -568,7 +567,7 @@ func (c *SolanaCollector) StartFastMetricsCollection(interval time.Duration) {
 				// Collect metrics in a background goroutine to avoid deadlock
 				go func() {
 					defer close(tempCh)
-					c.collectVoteAndRootDistance(ctx, tempCh)
+					c.collectVoteAndRootDistance(ctx, tempCh, nil)
 				}()
 				
 				// Collect metrics from the temporary channel, storing only the latest value for each metric
@@ -619,7 +618,7 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	c.logger.Info("========== BEGIN COLLECTION ==========")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	// Drain any metrics from the fast collection channel
 	for {
 		select {
@@ -632,39 +631,45 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 done:
 
+	var voteAccounts *rpc.VoteAccounts
+	var voteAccountsErr error
+	if !c.config.LightMode {
+		voteAccounts, voteAccountsErr = c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
+	}
+
 	// Only collect vote/root distance if fast metrics collection is disabled
 	// If fast metrics are enabled, those metrics are ONLY collected via the fast path
 	if c.config.FastMetricsInterval == 0 {
-		c.collectVoteAndRootDistance(ctx, ch)
+		c.collectVoteAndRootDistance(ctx, ch, voteAccounts)
 	}
 
 	c.logger.Info("Collecting health metrics...")
 	c.collectHealth(ctx, ch)
-	
+
 	// These are always essential metrics even in light mode
 	c.logger.Info("Collecting minimum ledger slot...")
 	c.collectMinimumLedgerSlot(ctx, ch)
-	
+
 	c.logger.Info("Collecting first available block...")
 	c.collectFirstAvailableBlock(ctx, ch)
-	
+
 	if !c.config.LightMode {
 		c.logger.Info("Collecting vote accounts...")
-		c.collectVoteAccounts(ctx, ch)
-		
+		c.collectVoteAccounts(ctx, ch, voteAccounts)
+
 		c.logger.Info("Collecting validator commission...")
-		c.collectValidatorCommission(ctx, ch)
+		c.collectValidatorCommission(ctx, ch, voteAccounts)
 	}
-	
+
 	c.logger.Info("Collecting version...")
 	c.collectVersion(ctx, ch)
-	
+
 	c.logger.Info("Collecting identity...")
 	c.collectIdentity(ctx, ch)
-	
+
 	c.logger.Info("Collecting balances...")
 	c.collectBalances(ctx, ch)
-	
+
 	// Validator-specific metrics - credits are available in light mode if identity is configured
 	if c.config.ValidatorIdentity != "" && c.config.VoteAccountPubkey != "" {
 		c.logger.Info("Collecting validator credits...")
