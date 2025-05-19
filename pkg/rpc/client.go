@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sync/atomic"
 	"time"
+	"sync"
 
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
 	"go.uber.org/zap"
@@ -63,6 +64,13 @@ var RpcCallCounter = prometheus.NewCounterVec(
 		Help: "Total number of Solana RPC calls made, labeled by method.",
 	},
 	[]string{"method"},
+)
+
+// EpochInfo cache and mutex
+var (
+	epochInfoCache      *EpochInfo
+	epochInfoCacheTime  time.Time
+	epochInfoCacheMutex sync.Mutex
 )
 
 func init() {
@@ -163,15 +171,21 @@ func getResponse[T any](
 	return nil
 }
 
-// GetEpochInfo returns information about the current epoch.
-// See API docs: https://solana.com/docs/rpc/http/getepochinfo
+// GetEpochInfo returns info about the current epoch, with a 15s cache to deduplicate calls.
 func (c *Client) GetEpochInfo(ctx context.Context, commitment Commitment) (*EpochInfo, error) {
-	var resp Response[EpochInfo]
+	epochInfoCacheMutex.Lock()
+	defer epochInfoCacheMutex.Unlock()
+	if epochInfoCache != nil && time.Since(epochInfoCacheTime) < 15*time.Second {
+		return epochInfoCache, nil
+	}
 	config := map[string]string{"commitment": string(commitment)}
+	var resp Response[EpochInfo]
 	if err := getResponse(ctx, c, "getEpochInfo", []any{config}, &resp); err != nil {
 		return nil, err
 	}
-	return &resp.Result, nil
+	epochInfoCache = &resp.Result
+	epochInfoCacheTime = time.Now()
+	return epochInfoCache, nil
 }
 
 // GetVoteAccounts returns the account info and associated stake for all the voting accounts in the current bank.
