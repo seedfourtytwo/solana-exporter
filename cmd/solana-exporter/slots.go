@@ -54,6 +54,10 @@ type SlotWatcher struct {
 	processedLeaderSlots map[int64]struct{}
 	skippedLeaderSlots map[int64]struct{}
 	emittedInflationRewards map[string]struct{} // key: votekey-epoch
+
+	// Leader schedule caching
+	cachedLeaderSchedule      *rpc.LeaderSchedule
+	cachedLeaderScheduleEpoch int64
 }
 
 func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
@@ -245,65 +249,35 @@ func (c *SlotWatcher) WatchSlots(ctx context.Context) {
 func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	c.logger.Infof("Tracking epoch %v (from %v)", epoch.Epoch, c.currentEpoch)
 	firstSlot, lastSlot := GetEpochBounds(epoch)
-	// if we haven't yet set c.currentEpoch, that (hopefully) means this is the initial setup,
-	// and so we can simply store the tracking numbers
 	if c.currentEpoch == 0 {
 		c.currentEpoch = epoch.Epoch
 		c.firstSlot = firstSlot
 		c.lastSlot = lastSlot
-		// we don't backfill on startup. we set the watermark to current slot minus 1,
-		//such that the current slot is the first slot tracked
 		c.slotWatermark = epoch.AbsoluteSlot - 1
 	} else {
-		// if c.currentEpoch is already set, then, just in case, run some checks
-		// to make sure that we make sure that we are tracking consistently
 		assertf(epoch.Epoch == c.currentEpoch+1, "epoch jumped from %v to %v", c.currentEpoch, epoch.Epoch)
-		assertf(
-			firstSlot == c.lastSlot+1,
-			"first slot %v does not follow from current last slot %v",
-			firstSlot,
-			c.lastSlot,
-		)
-
-		// and also, make sure that we have completed the last epoch:
-		assertf(
-			c.slotWatermark == c.lastSlot,
-			"can't update epoch when watermark %v hasn't reached current last-slot %v",
-			c.slotWatermark,
-			c.lastSlot,
-		)
-
-		// the epoch number is progressing correctly, so we can update our tracking numbers:
+		assertf(firstSlot == c.lastSlot+1, "first slot %v does not follow from current last slot %v", firstSlot, c.lastSlot)
+		assertf(c.slotWatermark == c.lastSlot, "can't update epoch when watermark %v hasn't reached current last-slot %v", c.slotWatermark, c.lastSlot)
 		c.currentEpoch = epoch.Epoch
 		c.firstSlot = firstSlot
 		c.lastSlot = lastSlot
 	}
-
-	// emit epoch bounds:
 	c.logger.Infof("Emitting epoch bounds: %v (slots %v -> %v)", c.currentEpoch, c.firstSlot, c.lastSlot)
 	c.EpochNumberMetric.Set(float64(c.currentEpoch))
-	
-	// These metrics are not essential in light mode
 	if !c.config.LightMode {
 		c.EpochFirstSlotMetric.Set(float64(c.firstSlot))
 		c.EpochLastSlotMetric.Set(float64(c.lastSlot))
 	}
-
 	// update leader schedule only in regular mode
 	if !c.config.LightMode {
 		c.logger.Infof("Updating leader schedule for epoch %v ...", c.currentEpoch)
-		leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, c.config.NodeKeys, epoch.AbsoluteSlot, c.firstSlot)
+		leaderSchedule, err := c.FetchLeaderSchedule(ctx, c.currentEpoch)
 		if err != nil {
-			c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
+			c.logger.Errorf("Failed to fetch leader schedule, bailing out: %v", err)
+		} else {
+			c.leaderSchedule = GetTrimmedLeaderScheduleFromCache(leaderSchedule, c.config.NodeKeys)
 		}
-		c.leaderSchedule = leaderSchedule
 	}
-
-	// Light mode leader slot tracking
-	// if c.config.LightMode && c.config.ValidatorIdentity != "" {
-	//     ...
-	//     c.AssignedLeaderSlotsGauge.Set(float64(count))
-	// }
 }
 
 // cleanEpoch deletes old epoch-labelled metrics which are no longer being updated due to an epoch change.
@@ -398,50 +372,40 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 		return
 	}
 	c.logger.Debugf("Processing leader slots for validator in [%v -> %v]", startSlot, endSlot)
-
-	// Patch: Ensure we do not request slots beyond the current slot
 	if endSlot > currentSlot {
 		c.logger.Warnf("endSlot %d is greater than currentSlot %d, adjusting endSlot", endSlot, currentSlot)
 		endSlot = currentSlot
 	}
-
 	if err := c.checkValidSlotRange(startSlot, endSlot); err != nil {
 		c.logger.Fatalf("invalid slot range: %v", err)
 	}
-
 	validatorNodekey := c.config.ValidatorIdentity
 	if validatorNodekey == "" {
 		c.logger.Warn("Validator identity not set, cannot process leader slots for validator.")
 		return
 	}
-
-	// Get the leader schedule for this epoch
-	c.logger.Infof("Fetching trimmed leader schedule for validator %s, startSlot=%d, firstSlot=%d", validatorNodekey, startSlot, c.firstSlot)
-	leaderSchedule, err := GetTrimmedLeaderSchedule(ctx, c.client, []string{validatorNodekey}, startSlot, c.firstSlot)
+	// Use the cached leader schedule for this epoch
+	leaderSchedule, err := c.FetchLeaderSchedule(ctx, c.currentEpoch)
 	if err != nil {
-		c.logger.Errorf("Failed to get trimmed leader schedule, bailing out: %v", err)
+		c.logger.Errorf("Failed to fetch leader schedule, bailing out: %v", err)
 		return
 	}
-
-	leaderSlots := leaderSchedule[validatorNodekey]
+	leaderSlots := leaderSchedule.ByIdentity[validatorNodekey]
 	c.logger.Infof("Fetched leaderSlots for validator %s: %v", validatorNodekey, leaderSlots)
 	if len(leaderSlots) == 0 {
 		c.logger.Warnf("No leader slots for validator %s in [%v -> %v] (expected nonzero if scheduled)", validatorNodekey, startSlot, endSlot)
 	}
 	c.logger.Infof("Setting AssignedLeaderSlotsGauge to %d (len(leaderSlots)) for validator %s", len(leaderSlots), validatorNodekey)
 	c.AssignedLeaderSlotsGauge.Set(float64(len(leaderSlots)))
-
-	// Use the pre-fetched blockProduction map
 	for _, slot := range leaderSlots {
 		if slot > endSlot {
-			continue // skip slots beyond the allowed range
+			continue
 		}
 		prod, ok := blockProduction.ByIdentity[validatorNodekey]
 		if !ok {
 			c.logger.Debugf("No block production info for validator %s at slot %d", validatorNodekey, slot)
 			continue
 		}
-		// Check if this slot is within the range
 		if prod.BlocksProduced > 0 {
 			c.processedLeaderSlots[slot] = struct{}{}
 		} else {
@@ -699,4 +663,36 @@ func (c *SlotWatcher) fetchAndEmitInflationRewardsWithDedup(ctx context.Context,
 		c.logger.Debugf("Polling: Added reward metric with labels address=%s, epoch=%s", address, toString(epoch))
 	}
 	c.logger.Infof("Polling: Fetched inflation reward for epoch %v.", epoch)
+}
+
+// FetchLeaderSchedule fetches the leader schedule for the current epoch, using a cache to avoid redundant RPC calls.
+func (c *SlotWatcher) FetchLeaderSchedule(ctx context.Context, currentEpoch int64) (*rpc.LeaderSchedule, error) {
+	// If we have a cached leader schedule for this epoch, use it
+	if c.cachedLeaderSchedule != nil && c.cachedLeaderScheduleEpoch == currentEpoch {
+		c.logger.Debugf("Using cached leader schedule for epoch %d", currentEpoch)
+		return c.cachedLeaderSchedule, nil
+	}
+	// Otherwise, fetch and cache
+	leaderSchedule, err := c.client.GetLeaderSchedule(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return nil, err
+	}
+	c.cachedLeaderSchedule = leaderSchedule
+	c.cachedLeaderScheduleEpoch = currentEpoch
+	c.logger.Infof("Fetched and cached new leader schedule for epoch %d", currentEpoch)
+	return leaderSchedule, nil
+}
+
+// Helper to trim the cached leader schedule for specific node keys
+func GetTrimmedLeaderScheduleFromCache(schedule *rpc.LeaderSchedule, nodeKeys []string) map[string][]int64 {
+	trimmed := make(map[string][]int64)
+	if schedule == nil {
+		return trimmed
+	}
+	for _, key := range nodeKeys {
+		if slots, ok := schedule.ByIdentity[key]; ok {
+			trimmed[key] = slots
+		}
+	}
+	return trimmed
 }
