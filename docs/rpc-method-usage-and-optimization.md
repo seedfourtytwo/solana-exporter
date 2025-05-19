@@ -202,4 +202,23 @@ This document explains the purpose, usage, and optimization opportunities for ea
 
 Instead of calling `getVersion` every 15s, cache the value and only refresh it every hour or on exporter restart. This alone can reduce thousands of unnecessary calls per day.
 
+---
+
+## Current RPC Call Counts (per minute, after getVoteAccounts deduplication)
+
+| Method                | Calls per minute |
+|-----------------------|-----------------|
+| minimumLedgerSlot     | 3               |
+| getLeaderSchedule     | 4               |
+| getIdentity           | 3               |
+| getBlockProduction    | 12              |
+| getVoteAccounts       | 7               |
+| getEpochInfo          | 4               |
+| getInflationReward    | 3               |
+| getSlot               | 22              |
+| getHealth             | 3               |
+| getFirstAvailableBlock| 3               |
+| getVersion            | 3               |
+| getBalance            | 15              |
+
 --- 

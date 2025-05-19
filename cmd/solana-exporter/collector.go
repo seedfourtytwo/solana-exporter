@@ -567,7 +567,8 @@ func (c *SolanaCollector) StartFastMetricsCollection(interval time.Duration) {
 				// Collect metrics in a background goroutine to avoid deadlock
 				go func() {
 					defer close(tempCh)
-					c.collectVoteAndRootDistance(ctx, tempCh, nil)
+					voteAccounts, _ := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
+					c.collectVoteAndRootDistance(ctx, tempCh, voteAccounts)
 				}()
 				
 				// Collect metrics from the temporary channel, storing only the latest value for each metric
