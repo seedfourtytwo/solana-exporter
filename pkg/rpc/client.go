@@ -73,6 +73,14 @@ var (
 	epochInfoCacheMutex sync.Mutex
 )
 
+// MinimumLedgerSlot cache and mutex
+var (
+	minimumLedgerSlotCache     int64
+	minimumLedgerSlotCacheTime time.Time
+	minimumLedgerSlotCacheSet  bool
+	minimumLedgerSlotCacheMutex sync.Mutex
+)
+
 func init() {
 	// Start a goroutine to log the counts every minute
 	go func() {
@@ -352,13 +360,21 @@ func (c *Client) GetHealth(ctx context.Context) (string, error) {
 }
 
 // GetMinimumLedgerSlot returns the lowest slot that the node has information about in its ledger.
-// See API docs: https://solana.com/docs/rpc/http/minimumledgerslot
+// Now uses a 10-minute cache to reduce redundant calls.
 func (c *Client) GetMinimumLedgerSlot(ctx context.Context) (int64, error) {
+	minimumLedgerSlotCacheMutex.Lock()
+	defer minimumLedgerSlotCacheMutex.Unlock()
+	if minimumLedgerSlotCacheSet && time.Since(minimumLedgerSlotCacheTime) < 10*time.Minute {
+		return minimumLedgerSlotCache, nil
+	}
 	var resp Response[int64]
 	if err := getResponse(ctx, c, "minimumLedgerSlot", []any{}, &resp); err != nil {
 		return 0, err
 	}
-	return resp.Result, nil
+	minimumLedgerSlotCache = resp.Result
+	minimumLedgerSlotCacheTime = time.Now()
+	minimumLedgerSlotCacheSet = true
+	return minimumLedgerSlotCache, nil
 }
 
 // GetFirstAvailableBlock returns the slot of the lowest confirmed block that has not been purged from the ledger
