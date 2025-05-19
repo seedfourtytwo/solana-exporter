@@ -653,7 +653,7 @@ func (c *SlotWatcher) fetchAndEmitRecentInflationRewards(ctx context.Context) {
 		return
 	}
 	currentEpoch := epochInfo.Epoch
-	for epoch := currentEpoch - 2; epoch <= currentEpoch; epoch++ {
+	for epoch := currentEpoch - 3; epoch < currentEpoch; epoch++ {
 		c.fetchAndEmitInflationRewardsWithDedup(ctx, epoch)
 	}
 }

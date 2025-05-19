@@ -69,6 +69,10 @@ type SolanaCollector struct {
 	// Version caching
 	cachedVersion      string
 	lastVersionFetch   time.Time
+
+	// Identity caching
+	cachedIdentity     string
+	cachedIdentityEpoch int64
 }
 
 func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCollector {
@@ -320,7 +324,25 @@ func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- promethe
 
 func (c *SolanaCollector) collectIdentity(ctx context.Context, ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting identity...")
-	identity, err := c.rpcClient.GetIdentity(ctx)
+	// Get current epoch
+	epochInfo, err := c.rpcClient.GetEpochInfo(ctx, rpc.CommitmentConfirmed)
+	if err != nil {
+		c.logger.Errorf("failed to get epoch info for identity caching: %v", err)
+		ch <- c.NodeIdentity.NewInvalidMetric(err)
+		return
+	}
+	currentEpoch := int64(epochInfo.Epoch)
+
+	var identity string
+	if c.cachedIdentity != "" && c.cachedIdentityEpoch == currentEpoch {
+		identity = c.cachedIdentity
+	} else {
+		identity, err = c.rpcClient.GetIdentity(ctx)
+		if err == nil {
+			c.cachedIdentity = identity
+			c.cachedIdentityEpoch = currentEpoch
+		}
+	}
 	if err != nil {
 		c.logger.Errorf("failed to get identity: %v", err)
 		ch <- c.NodeIdentity.NewInvalidMetric(err)
