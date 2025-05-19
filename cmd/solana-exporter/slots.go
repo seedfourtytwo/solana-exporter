@@ -56,7 +56,7 @@ type SlotWatcher struct {
 	emittedInflationRewards map[string]struct{} // key: votekey-epoch
 
 	// Leader schedule caching
-	cachedLeaderSchedule      *rpc.LeaderSchedule
+	cachedLeaderSchedule      map[string][]int64
 	cachedLeaderScheduleEpoch int64
 }
 
@@ -271,7 +271,7 @@ func (c *SlotWatcher) trackEpoch(ctx context.Context, epoch *rpc.EpochInfo) {
 	// update leader schedule only in regular mode
 	if !c.config.LightMode {
 		c.logger.Infof("Updating leader schedule for epoch %v ...", c.currentEpoch)
-		leaderSchedule, err := c.FetchLeaderSchedule(ctx, c.currentEpoch)
+		leaderSchedule, err := c.FetchLeaderSchedule(ctx, c.currentEpoch, c.firstSlot)
 		if err != nil {
 			c.logger.Errorf("Failed to fetch leader schedule, bailing out: %v", err)
 		} else {
@@ -385,12 +385,12 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 		return
 	}
 	// Use the cached leader schedule for this epoch
-	leaderSchedule, err := c.FetchLeaderSchedule(ctx, c.currentEpoch)
+	leaderSchedule, err := c.FetchLeaderSchedule(ctx, c.currentEpoch, c.firstSlot)
 	if err != nil {
 		c.logger.Errorf("Failed to fetch leader schedule, bailing out: %v", err)
 		return
 	}
-	leaderSlots := leaderSchedule.ByIdentity[validatorNodekey]
+	leaderSlots := leaderSchedule[validatorNodekey]
 	c.logger.Infof("Fetched leaderSlots for validator %s: %v", validatorNodekey, leaderSlots)
 	if len(leaderSlots) == 0 {
 		c.logger.Warnf("No leader slots for validator %s in [%v -> %v] (expected nonzero if scheduled)", validatorNodekey, startSlot, endSlot)
@@ -666,14 +666,12 @@ func (c *SlotWatcher) fetchAndEmitInflationRewardsWithDedup(ctx context.Context,
 }
 
 // FetchLeaderSchedule fetches the leader schedule for the current epoch, using a cache to avoid redundant RPC calls.
-func (c *SlotWatcher) FetchLeaderSchedule(ctx context.Context, currentEpoch int64) (*rpc.LeaderSchedule, error) {
-	// If we have a cached leader schedule for this epoch, use it
+func (c *SlotWatcher) FetchLeaderSchedule(ctx context.Context, currentEpoch int64, epochFirstSlot int64) (map[string][]int64, error) {
 	if c.cachedLeaderSchedule != nil && c.cachedLeaderScheduleEpoch == currentEpoch {
 		c.logger.Debugf("Using cached leader schedule for epoch %d", currentEpoch)
 		return c.cachedLeaderSchedule, nil
 	}
-	// Otherwise, fetch and cache
-	leaderSchedule, err := c.client.GetLeaderSchedule(ctx, rpc.CommitmentFinalized)
+	leaderSchedule, err := c.client.GetLeaderSchedule(ctx, rpc.CommitmentFinalized, epochFirstSlot)
 	if err != nil {
 		return nil, err
 	}
@@ -684,13 +682,13 @@ func (c *SlotWatcher) FetchLeaderSchedule(ctx context.Context, currentEpoch int6
 }
 
 // Helper to trim the cached leader schedule for specific node keys
-func GetTrimmedLeaderScheduleFromCache(schedule *rpc.LeaderSchedule, nodeKeys []string) map[string][]int64 {
+func GetTrimmedLeaderScheduleFromCache(schedule map[string][]int64, nodeKeys []string) map[string][]int64 {
 	trimmed := make(map[string][]int64)
 	if schedule == nil {
 		return trimmed
 	}
 	for _, key := range nodeKeys {
-		if slots, ok := schedule.ByIdentity[key]; ok {
+		if slots, ok := schedule[key]; ok {
 			trimmed[key] = slots
 		}
 	}
