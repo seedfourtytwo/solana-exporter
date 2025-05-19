@@ -632,9 +632,8 @@ func (c *SolanaCollector) Collect(ch chan<- prometheus.Metric) {
 done:
 
 	var voteAccounts *rpc.VoteAccounts
-	var voteAccountsErr error
 	if !c.config.LightMode {
-		voteAccounts, voteAccountsErr = c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
+		voteAccounts, _ = c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentConfirmed)
 	}
 
 	// Only collect vote/root distance if fast metrics collection is disabled
