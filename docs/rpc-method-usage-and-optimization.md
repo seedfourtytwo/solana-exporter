@@ -62,8 +62,8 @@ This document explains the purpose, usage, and optimization opportunities for ea
 
 ### getFirstAvailableBlock
 - **Purpose:** Returns the slot of the lowest confirmed block not purged from the ledger.
-- **Optimization:** Called once per scrape. No further optimization needed.
-- **Rationale:** This value changes slowly, but is not a high-frequency call. Further caching is optional.
+- **Optimization:** Now cached for 10 minutes. Only fetches a new value if the cache is expired.
+- **Rationale:** This value changes very slowly (only when the node purges old blocks). Polling every scrape is unnecessary; a 10-minute cache dramatically reduces calls with no loss of monitoring accuracy.
 
 ### getHealth
 - **Purpose:** Checks if the node is healthy (liveness/readiness).

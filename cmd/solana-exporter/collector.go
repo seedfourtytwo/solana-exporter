@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"sync"
 
 	"github.com/seedfourtytwo/solana-exporter/pkg/rpc"
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
@@ -32,6 +33,12 @@ const (
 	TransactionTypeVote    = "vote"
 	TransactionTypeNonVote = "non_vote"
 )
+
+type balanceCache struct {
+	balances   map[string]float64
+	fetchedAt  time.Time
+	mutex      sync.Mutex
+}
 
 type SolanaCollector struct {
 	rpcClient *rpc.Client
@@ -73,6 +80,9 @@ type SolanaCollector struct {
 	// Identity caching
 	cachedIdentity     string
 	cachedIdentityEpoch int64
+
+	// Add this field for balance caching
+	balanceCache balanceCache
 }
 
 func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCollector {
@@ -394,7 +404,6 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 		return
 	}
 	c.logger.Info("Collecting balances...")
-	
 	// Combine all addresses to track: explicitly provided balance addresses, node keys, vote keys
 	// This allows tracking balances of identity (nodekey) and vote account addresses
 	addressesToTrack := CombineUnique(c.config.BalanceAddresses, c.config.NodeKeys, c.config.VoteKeys)
@@ -404,14 +413,26 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 	if c.config.VoteAccountPubkey != "" {
 		addressesToTrack = append(addressesToTrack, c.config.VoteAccountPubkey)
 	}
-
 	// Deduplicate addresses before logging and fetching balances
 	uniqueAddresses := slices.Compact(addressesToTrack)
 	c.logger.Infof("Unique addresses being tracked: %v", uniqueAddresses)
 	c.logger.Infof("Total unique addresses being tracked: %d", len(uniqueAddresses))
-
 	if len(uniqueAddresses) == 0 {
 		c.logger.Info("No addresses to track balances for, skipping balance collection.")
+		return
+	}
+
+	cache := &c.balanceCache
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+
+	cacheDuration := time.Minute
+	useCache := cache.balances != nil && time.Since(cache.fetchedAt) < cacheDuration
+	if useCache {
+		c.logger.Infof("Using cached balances (age: %v)", time.Since(cache.fetchedAt))
+		for address, balance := range cache.balances {
+			ch <- c.AccountBalances.MustNewConstMetric(balance, address)
+		}
 		return
 	}
 
@@ -422,6 +443,9 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 		ch <- c.AccountBalances.NewInvalidMetric(err)
 		return
 	}
+	// Update cache
+	cache.balances = balances
+	cache.fetchedAt = time.Now()
 
 	for address, balance := range balances {
 		ch <- c.AccountBalances.MustNewConstMetric(balance, address)
