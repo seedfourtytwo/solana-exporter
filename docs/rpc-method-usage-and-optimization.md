@@ -204,25 +204,6 @@ Instead of calling `getVersion` every 15s, cache the value and only refresh it e
 
 ---
 
-## Current RPC Call Counts (per minute, after getVoteAccounts deduplication)
-
-| Method                | Calls per minute |
-|-----------------------|-----------------|
-| minimumLedgerSlot     | 3               |
-| getLeaderSchedule     | 4               |
-| getIdentity           | 3               |
-| getBlockProduction    | 12              |
-| getVoteAccounts       | 7               |
-| getEpochInfo          | 4               |
-| getInflationReward    | 3               |
-| getSlot               | 22              |
-| getHealth             | 3               |
-| getFirstAvailableBlock| 3               |
-| getVersion            | 3               |
-| getBalance            | 15              |
-
----
-
 ### Recent Optimization: getVoteAccounts Deduplication
 
 - **What was changed:**
@@ -246,25 +227,23 @@ Instead of calling `getVersion` every 15s, cache the value and only refresh it e
 
 ## RPC Call Counts Comparison (per minute)
 
-| Method                | Before Any Dedup | After getVoteAccounts Dedup | After SlotWatcher getSlot Dedup |
-|-----------------------|------------------|-----------------------------|-------------------------------|
-| getVoteAccounts       | 32               | 7                           | 27                            |
-| getSlot               | 24               | 22                          | 26                            |
-| getBalance            | 20               | 15                          | 18                            |
-| getBlockProduction    | 16               | 12                          | 12                            |
-| getEpochInfo          | 5                | 4                           | 4                             |
-| getLeaderSchedule     | 4                | 4                           | 4                             |
-| getVersion            | 4                | 3                           | 4                             |
-| minimumLedgerSlot     | 4                | 3                           | 4                             |
-| getIdentity           | 4                | 3                           | 4                             |
-| getFirstAvailableBlock| 4                | 3                           | 4                             |
-| getHealth             | 4                | 3                           | 4                             |
-| getInflationReward    | 3                | 3                           | 3                             |
+| Method                | Before Any Dedup | After getVoteAccounts Dedup | After SlotWatcher getSlot Dedup | After getBlockProduction Dedup |
+|-----------------------|------------------|-----------------------------|-------------------------------|-------------------------------|
+| getVoteAccounts       | 32               | 7                           | 27                            | 28                            |
+| getSlot               | 24               | 22                          | 26                            | 26                            |
+| getBalance            | 20               | 15                          | 18                            | 20                            |
+| getBlockProduction    | 16               | 12                          | 12                            | 3                             |
+| getLeaderSchedule     | 4                | 4                           | 4                             | 4                             |
+| getEpochInfo          | 4                | 4                           | 4                             | 4                             |
+| getVersion            | 4                | 3                           | 4                             | 4                             |
+| minimumLedgerSlot     | 4                | 3                           | 4                             | 4                             |
+| getIdentity           | 4                | 3                           | 4                             | 4                             |
+| getHealth             | 4                | 3                           | 4                             | 4                             |
+| getFirstAvailableBlock| 4                | 3                           | 4                             | 4                             |
+| getInflationReward    | 3                | 3                           | 3                             | 3                             |
 
-**Notes:**
-- "Before Any Dedup" = before any deduplication optimizations.
-- "After getVoteAccounts Dedup" = after deduplicating getVoteAccounts in the collector.
-- "After SlotWatcher getSlot Dedup" = after deduplicating getSlot in both the collector and SlotWatcher.
+**Note:**
+- After deduplicating `getBlockProduction` in SlotWatcher, the call count dropped from 12/min to 3/min, significantly reducing RPC usage for this method without affecting metric accuracy.
 
 ### Recent Optimization: SlotWatcher getSlot Deduplication
 - **What was changed:**

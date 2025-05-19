@@ -13,6 +13,7 @@ import (
 
 	"github.com/seedfourtytwo/solana-exporter/pkg/slog"
 	"go.uber.org/zap"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type (
@@ -55,6 +56,15 @@ const (
 var rpcCallCounts = make(map[string]*int64)
 var rpcCallCountsLock = make(chan struct{}, 1)
 
+// Prometheus metric for counting RPC calls by method
+var RpcCallCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "solana_exporter_rpc_calls_total",
+		Help: "Total number of Solana RPC calls made, labeled by method.",
+	},
+	[]string{"method"},
+)
+
 func init() {
 	// Start a goroutine to log the counts every minute
 	go func() {
@@ -72,6 +82,7 @@ func init() {
 			<-rpcCallCountsLock // unlock
 		}
 	}()
+	prometheus.MustRegister(RpcCallCounter)
 }
 
 // GetClusterFromGenesisHash returns the cluster name based on the genesis hash
@@ -92,9 +103,12 @@ func NewRPCClient(rpcAddr string, httpTimeout time.Duration) *Client {
 	return &Client{HttpClient: http.Client{}, RpcUrl: rpcAddr, HttpTimeout: httpTimeout, logger: slog.Get()}
 }
 
+// getResponse is the internal helper for making RPC calls
 func getResponse[T any](
 	ctx context.Context, client *Client, method string, params []any, rpcResponse *Response[T],
 ) error {
+	// Increment Prometheus counter for this method
+	RpcCallCounter.WithLabelValues(method).Inc()
 	logger := slog.Get()
 	// Count and log the call
 	rpcCallCountsLock <- struct{}{} // lock
