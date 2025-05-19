@@ -65,6 +65,10 @@ type SolanaCollector struct {
 	// Channel for fast metrics collection
 	fastMetricsCh chan prometheus.Metric
 	stopFastCollection chan struct{}
+
+	// Version caching
+	cachedVersion      string
+	lastVersionFetch   time.Time
 }
 
 func NewSolanaCollector(rpcClient *rpc.Client, config *ExporterConfig) *SolanaCollector {
@@ -293,13 +297,23 @@ func (c *SolanaCollector) collectVoteAccounts(ctx context.Context, ch chan<- pro
 
 func (c *SolanaCollector) collectVersion(ctx context.Context, ch chan<- prometheus.Metric) {
 	c.logger.Info("Collecting version...")
-	version, err := c.rpcClient.GetVersion(ctx)
+	const versionCacheDuration = time.Hour
+	var version string
+	var err error
+	if c.cachedVersion != "" && time.Since(c.lastVersionFetch) < versionCacheDuration {
+		version = c.cachedVersion
+	} else {
+		version, err = c.rpcClient.GetVersion(ctx)
+		if err == nil {
+			c.cachedVersion = version
+			c.lastVersionFetch = time.Now()
+		}
+	}
 	if err != nil {
 		c.logger.Errorf("failed to get version: %v", err)
 		ch <- c.NodeVersion.NewInvalidMetric(err)
 		return
 	}
-
 	ch <- c.NodeVersion.MustNewConstMetric(1, version)
 	c.logger.Info("Version collected.")
 }
@@ -362,28 +376,25 @@ func (c *SolanaCollector) collectBalances(ctx context.Context, ch chan<- prometh
 	// Combine all addresses to track: explicitly provided balance addresses, node keys, vote keys
 	// This allows tracking balances of identity (nodekey) and vote account addresses
 	addressesToTrack := CombineUnique(c.config.BalanceAddresses, c.config.NodeKeys, c.config.VoteKeys)
-	
-	// Add validator identity if provided
 	if c.config.ValidatorIdentity != "" {
 		addressesToTrack = append(addressesToTrack, c.config.ValidatorIdentity)
 	}
-	
-	// Add vote account if provided
 	if c.config.VoteAccountPubkey != "" {
 		addressesToTrack = append(addressesToTrack, c.config.VoteAccountPubkey)
 	}
-	
-	// Log the addresses being tracked and their count
-	c.logger.Infof("Tracking balances for addresses: %v", addressesToTrack)
-	c.logger.Infof("Total unique addresses being tracked: %d", len(addressesToTrack))
-	
-	if len(addressesToTrack) == 0 {
+
+	// Deduplicate addresses before logging and fetching balances
+	uniqueAddresses := slices.Compact(addressesToTrack)
+	c.logger.Infof("Unique addresses being tracked: %v", uniqueAddresses)
+	c.logger.Infof("Total unique addresses being tracked: %d", len(uniqueAddresses))
+
+	if len(uniqueAddresses) == 0 {
 		c.logger.Info("No addresses to track balances for, skipping balance collection.")
 		return
 	}
-	
-	c.logger.Infof("Fetching balances for %d addresses", len(addressesToTrack))
-	balances, err := FetchBalances(ctx, c.rpcClient, addressesToTrack)
+
+	c.logger.Infof("Fetching balances for %d addresses", len(uniqueAddresses))
+	balances, err := FetchBalances(ctx, c.rpcClient, uniqueAddresses)
 	if err != nil {
 		c.logger.Errorf("failed to get balances: %v", err)
 		ch <- c.AccountBalances.NewInvalidMetric(err)
