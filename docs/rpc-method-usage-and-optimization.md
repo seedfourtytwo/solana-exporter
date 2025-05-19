@@ -242,4 +242,35 @@ Instead of calling `getVersion` every 15s, cache the value and only refresh it e
 - **Plan:**
   - Next, deduplicate `getSlot` by fetching it once per scrape and sharing the value across all metrics that need it.
 
+---
+
+## RPC Call Counts Comparison (per minute)
+
+| Method                | Before Any Dedup | After getVoteAccounts Dedup | After SlotWatcher getSlot Dedup |
+|-----------------------|------------------|-----------------------------|-------------------------------|
+| getVoteAccounts       | 32               | 7                           | 27                            |
+| getSlot               | 24               | 22                          | 26                            |
+| getBalance            | 20               | 15                          | 18                            |
+| getBlockProduction    | 16               | 12                          | 12                            |
+| getEpochInfo          | 5                | 4                           | 4                             |
+| getLeaderSchedule     | 4                | 4                           | 4                             |
+| getVersion            | 4                | 3                           | 4                             |
+| minimumLedgerSlot     | 4                | 3                           | 4                             |
+| getIdentity           | 4                | 3                           | 4                             |
+| getFirstAvailableBlock| 4                | 3                           | 4                             |
+| getHealth             | 4                | 3                           | 4                             |
+| getInflationReward    | 3                | 3                           | 3                             |
+
+**Notes:**
+- "Before Any Dedup" = before any deduplication optimizations.
+- "After getVoteAccounts Dedup" = after deduplicating getVoteAccounts in the collector.
+- "After SlotWatcher getSlot Dedup" = after deduplicating getSlot in both the collector and SlotWatcher.
+
+### Recent Optimization: SlotWatcher getSlot Deduplication
+- **What was changed:**
+  - SlotWatcher now fetches the current slot only once per tick and shares it across all slot-dependent logic in that tick.
+- **Impact:**
+  - This should reduce redundant getSlot calls within each SlotWatcher tick, but total calls may still be high if SlotWatcher runs frequently or if other code paths call getSlot.
+  - If you still see high getSlot or getVoteAccounts counts, check for other background jobs, utility functions, or configuration that may be triggering extra calls.
+
 --- 

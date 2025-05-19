@@ -377,13 +377,22 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64, currentSlot int64) {
 	c.logger.Infof("Moving watermark %v -> %v", c.slotWatermark, to)
 	startSlot := c.slotWatermark + 1
-	c.processLeaderSlotsForValidator(ctx, startSlot, to, currentSlot)
+	if startSlot > to {
+		return
+	}
+	// Fetch block production for the range
+	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, startSlot, to)
+	if err != nil {
+		c.logger.Errorf("Failed to get block production for slots %d-%d: %v", startSlot, to, err)
+		return
+	}
+	c.processLeaderSlotsForValidator(ctx, startSlot, to, currentSlot, blockProduction)
 	c.fetchAndEmitBlockInfos(ctx, startSlot, to)
 	c.slotWatermark = to
 }
 
-// New function to process leader slots for the validator and update gauges
-func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startSlot, endSlot, currentSlot int64) {
+// Refactored: processLeaderSlotsForValidator now takes blockProduction as an argument
+func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startSlot, endSlot, currentSlot int64, blockProduction *rpc.BlockProduction) {
 	if c.config.LightMode {
 		c.logger.Debug("Skipping leader slot processing in light mode.")
 		return
@@ -422,20 +431,17 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	c.logger.Infof("Setting AssignedLeaderSlotsGauge to %d (len(leaderSlots)) for validator %s", len(leaderSlots), validatorNodekey)
 	c.AssignedLeaderSlotsGauge.Set(float64(len(leaderSlots)))
 
+	// Use the pre-fetched blockProduction map
 	for _, slot := range leaderSlots {
 		if slot > endSlot {
 			continue // skip slots beyond the allowed range
-		}
-		blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, slot, slot)
-		if err != nil {
-			c.logger.Errorf("Failed to get block production for slot %d: %v", slot, err)
-			continue
 		}
 		prod, ok := blockProduction.ByIdentity[validatorNodekey]
 		if !ok {
 			c.logger.Debugf("No block production info for validator %s at slot %d", validatorNodekey, slot)
 			continue
 		}
+		// Check if this slot is within the range
 		if prod.BlocksProduced > 0 {
 			c.processedLeaderSlots[slot] = struct{}{}
 		} else {
