@@ -4,6 +4,8 @@
 The Solana Exporter exports basic monitoring data from a Solana node, using the 
 [Solana RPC API](https://solana.com/docs/rpc).
 
+For detailed information on how RPC calls are managed, optimized, and monitored, see [RPC Method Usage & Optimization](docs/rpc-method-usage-and-optimization.md).
+
 ## Changes I made so far from the original project https://github.com/asymmetric-research/solana-exporter
 
 ### Validator Credits Tracking (2024)

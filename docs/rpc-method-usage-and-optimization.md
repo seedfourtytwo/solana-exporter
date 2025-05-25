@@ -1,26 +1,16 @@
 # Solana Exporter: RPC Method Usage & Optimization
 
+## Table of Contents
+- [Optimization Summary Table](#optimization-summary-table)
+- [Prometheus RPC Call Monitoring](#prometheus-rpc-call-monitoring)
+- [Method Details & Optimizations](#method-details--optimizations)
+- [Notes](#notes)
+- [General Optimization Strategies](#general-optimization-strategies)
+
 This document explains the purpose, usage, and optimization opportunities for each Solana RPC method used in your exporter. **Last updated: after major deduplication and caching improvements (May 2025)**
 
----
-
-## Optimization Summary Table
-
-| Method                | Optimization Status                | Details/Cache Duration         | Typical Calls/min |
-|-----------------------|------------------------------------|-------------------------------|-------------------|
-| getVoteAccounts       | Deduplicated per scrape            | Fetched once per scrape       | ~28               |
-| getSlot               | Deduplicated per scrape/tick       | Fetched once per scrape/tick  | ~28               |
-| getBalance            | 1-min cache per address              | Cached for 1 min, refreshed if expired | ~1 (per address)      |
-| getBlockProduction    | Deduplicated per tick              | Once per tick                 | ~4                |
-| getLeaderSchedule     | Cached per epoch                   | Only on epoch change/restart  | ~0                |
-| getEpochInfo          | Globally cached (15s)              | Shared cache, 15s TTL         | ~2                |
-| minimumLedgerSlot     | Cached (10 min)                    | Only fetch every 10 min       | ~0.1              |
-| getFirstAvailableBlock| No further optimization            | Once per scrape               | ~4                |
-| getHealth             | Already optimal                    | Once per scrape               | ~4                |
-| getVersion            | Cached (1 hour)                    | Once per hour                 | ~0                |
-| getIdentity           | Cached (per epoch)                 | Once per epoch                | ~0                |
-| getInflationReward    | Optimized (completed epochs only)  | Only for last 3 completed     | ~0                |
-
+## Prometheus RPC Call Monitoring
+All RPC calls made by the exporter are now tracked in Prometheus with their own metrics. The primary metric is `solana_rpc_call_count`, which records the number of calls per RPC method. Additional metrics such as `solana_rpc_call_duration_seconds` and `solana_rpc_call_errors_total` provide insight into latency and errors. This allows you to directly monitor, visualize, and alert on the frequency, latency, and errors of each RPC method. This provides full transparency into exporter RPC usage and helps with troubleshooting and optimization.
 ---
 
 ## Method Details & Optimizations
@@ -82,8 +72,8 @@ This document explains the purpose, usage, and optimization opportunities for ea
 
 ### getInflationReward
 - **Purpose:** Returns inflation/staking rewards for addresses for a given epoch.
-- **Optimization:** Only fetched for the last 3 completed epochs, and deduplicated.
-- **Rationale:** Rewards are only available for completed epochs. Limiting calls to recent epochs avoids unnecessary queries.
+- **Optimization:** Now only fetched once per epoch, immediately after an epoch change.
+- **Rationale:** Rewards are only available for completed epochs. Fetching after each epoch transition ensures fresh data with minimal RPC usage.
 
 ---
 
@@ -99,4 +89,6 @@ This document explains the purpose, usage, and optimization opportunities for ea
 - **Cache**: Cache values that rarely change (e.g., version, identity, leader schedule).
 - **Reduce Scrape Frequency**: For non-critical metrics, scrape less often (e.g., every 1-5 minutes).
 - **Light Mode**: Use light mode for node-specific metrics only.
-- **Batch/Parallelize**: Where possible, batch or parallelize requests for efficiency. 
+- **Batch/Parallelize**: Where possible, batch or parallelize requests for efficiency.
+
+---

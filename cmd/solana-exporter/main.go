@@ -37,6 +37,7 @@ func main() {
 	rpcClient := rpc.NewRPCClient(config.RpcUrl, config.HttpTimeout)
 	collector := NewSolanaCollector(rpcClient, config)
 	slotWatcher := NewSlotWatcher(rpcClient, config)
+	prometheus.MustRegister(slotWatcher)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go slotWatcher.WatchSlots(ctx)
