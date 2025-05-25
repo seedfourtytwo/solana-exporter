@@ -371,6 +371,8 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 		return
 	}
 	c.logger.Debugf("Processing leader slots for validator in [%v -> %v]", startSlot, endSlot)
+	c.logger.Debugf("Validator identity: %s", c.config.ValidatorIdentity)
+	c.logger.Debugf("Block production keys: %v", blockProduction.ByIdentity)
 	if endSlot > currentSlot {
 		c.logger.Warnf("endSlot %d is greater than currentSlot %d, adjusting endSlot", endSlot, currentSlot)
 		endSlot = currentSlot
@@ -391,16 +393,18 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	}
 	leaderSlots := leaderSchedule[validatorNodekey]
 	c.logger.Infof("Fetched leaderSlots for validator %s: %v", validatorNodekey, leaderSlots)
+	c.logger.Debugf("Number of leader slots for validator %s: %d", validatorNodekey, len(leaderSlots))
 	if len(leaderSlots) == 0 {
 		c.logger.Warnf("No leader slots for validator %s in [%v -> %v] (expected nonzero if scheduled)", validatorNodekey, startSlot, endSlot)
 	}
 	c.logger.Infof("Setting AssignedLeaderSlotsGauge to %d (len(leaderSlots)) for validator %s", len(leaderSlots), validatorNodekey)
 	c.AssignedLeaderSlotsGauge.Set(float64(len(leaderSlots)))
+	prod, ok := blockProduction.ByIdentity[validatorNodekey]
+	c.logger.Debugf("Block production for validator %s: %+v (found: %v)", validatorNodekey, prod, ok)
 	for _, slot := range leaderSlots {
 		if slot > endSlot {
 			continue
 		}
-		prod, ok := blockProduction.ByIdentity[validatorNodekey]
 		if !ok {
 			c.logger.Debugf("No block production info for validator %s at slot %d", validatorNodekey, slot)
 			continue
