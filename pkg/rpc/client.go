@@ -412,3 +412,17 @@ func (c *Client) GetGenesisHash(ctx context.Context) (string, error) {
 	}
 	return resp.Result, nil
 }
+
+// GetBlockProductionForIdentity returns block production for the current epoch for a specific identity (validator),
+// using the efficient Solana RPC call with only the identity parameter (no range).
+func (c *Client) GetBlockProductionForIdentity(ctx context.Context, commitment Commitment, identity string) (*BlockProduction, error) {
+	config := map[string]any{
+		"commitment": string(commitment),
+		"identity": identity,
+	}
+	var resp Response[contextualResult[BlockProduction]]
+	if err := getResponse(ctx, c, "getBlockProduction", []any{config}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp.Result.Value, nil
+}
