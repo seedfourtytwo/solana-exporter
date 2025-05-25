@@ -108,12 +108,11 @@ func (hp *HostProduction) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &arr); err != nil {
 		return err
 	}
-
 	if len(arr) != 2 {
 		return fmt.Errorf("expected array of 2 integers, got %d", len(arr))
 	}
-	hp.LeaderSlots = arr[0]
-	hp.BlocksProduced = arr[1]
+	hp.BlocksProduced = arr[0] // produced
+	hp.LeaderSlots = arr[1]    // assigned
 	return nil
 }
 
