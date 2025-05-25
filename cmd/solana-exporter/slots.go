@@ -398,25 +398,17 @@ func (c *SlotWatcher) processLeaderSlotsForValidator(ctx context.Context, startS
 	}
 	c.logger.Infof("Setting AssignedLeaderSlotsGauge to %d (len(leaderSlots)) for validator %s", len(leaderSlots), validatorNodekey)
 	c.AssignedLeaderSlotsGauge.Set(float64(len(leaderSlots)))
+
 	prod, ok := blockProduction.ByIdentity[validatorNodekey]
-	c.logger.Debugf("Block production for validator %s: %+v (found: %v)", validatorNodekey, prod, ok)
-	for _, slot := range leaderSlots {
-		if slot > endSlot {
-			continue
-		}
-		if !ok {
-			c.logger.Debugf("No block production info for validator %s at slot %d", validatorNodekey, slot)
-			continue
-		}
-		if prod.BlocksProduced > 0 {
-			c.processedLeaderSlots[slot] = struct{}{}
-		} else {
-			c.skippedLeaderSlots[slot] = struct{}{}
-		}
+	if !ok {
+		c.logger.Warnf("No block production info for validator %s", validatorNodekey)
+		c.LeaderSlotsProcessedEpochGauge.Set(0)
+		c.LeaderSlotsSkippedEpochGauge.Set(0)
+		return
 	}
-	c.LeaderSlotsProcessedEpochGauge.Set(float64(len(c.processedLeaderSlots)))
-	c.LeaderSlotsSkippedEpochGauge.Set(float64(len(c.skippedLeaderSlots)))
-	c.logger.Infof("Updated per-epoch leader slot gauges: processed=%d, skipped=%d", len(c.processedLeaderSlots), len(c.skippedLeaderSlots))
+	c.LeaderSlotsProcessedEpochGauge.Set(float64(prod.BlocksProduced))
+	c.LeaderSlotsSkippedEpochGauge.Set(float64(prod.LeaderSlots - prod.BlocksProduced))
+	c.logger.Infof("Updated per-epoch leader slot gauges: processed=%d, skipped=%d", prod.BlocksProduced, prod.LeaderSlots - prod.BlocksProduced)
 }
 
 // fetchAndEmitBlockProduction fetches block production from startSlot up to the provided endSlot [inclusive],
