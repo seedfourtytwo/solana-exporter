@@ -77,7 +77,7 @@ func TestSlotWatcher_WatchSlots_Static(t *testing.T) {
 	ctx := context.Background()
 
 	simulator, client := NewSimulator(t, 35)
-	watcher := NewSlotWatcher(client, newTestConfig(simulator, true))
+	watcher := SlotWatcherFromConfig(client, newTestConfig(simulator, true))
 	// reset metrics before running tests:
 	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
@@ -134,7 +134,7 @@ func TestSlotWatcher_WatchSlots_Dynamic(t *testing.T) {
 
 	// create clients:
 	simulator, client := NewSimulator(t, 23)
-	watcher := NewSlotWatcher(client, newTestConfig(simulator, true))
+	watcher := SlotWatcherFromConfig(client, newTestConfig(simulator, true))
 	// reset metrics before running tests:
 	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()
@@ -273,7 +273,7 @@ func TestSlotWatcher_cleanUpEpoch(t *testing.T) {
 	// set the cleanup time to 0 such that epochs are instantly cleaned up.
 	config := newTestConfig(simulator, true)
 	config.EpochCleanupTime = time.Duration(0)
-	watcher := NewSlotWatcher(client, config)
+	watcher := SlotWatcherFromConfig(client, config)
 	// reset metrics before running tests:
 	watcher.LeaderSlotsMetric.Reset()
 	watcher.LeaderSlotsByEpochMetric.Reset()

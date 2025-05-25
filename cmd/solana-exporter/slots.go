@@ -60,7 +60,7 @@ type SlotWatcher struct {
 	cachedLeaderScheduleEpoch int64
 }
 
-func NewSlotWatcher(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
+func SlotWatcherFromConfig(client *rpc.Client, config *ExporterConfig) *SlotWatcher {
 	logger := slog.Get()
 	watcher := SlotWatcher{
 		client:         client,
