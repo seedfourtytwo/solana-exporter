@@ -38,13 +38,17 @@ func main() {
 	collector := NewSolanaCollector(rpcClient, config)
 	slotWatcher := SlotWatcherFromConfig(rpcClient, config)
 
-	// Fetch and emit inflation rewards for the previous epoch on startup
+	// Fetch and emit inflation rewards for the last 3 epochs (if available) instead of just the previous epoch
 	epochInfo, err := rpcClient.GetEpochInfo(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		logger.Errorf("Failed to fetch epoch info on startup: %v", err)
-	} else if epochInfo.Epoch > 0 {
-		if err := slotWatcher.fetchAndEmitInflationRewards(ctx, epochInfo.Epoch-1); err != nil {
-			logger.Errorf("Failed to emit inflation rewards on startup: %v", err)
+	} else {
+		for i := 1; i <= 3; i++ {
+			if epochInfo.Epoch >= int64(i) {
+				if err := slotWatcher.fetchAndEmitInflationRewards(ctx, epochInfo.Epoch-int64(i)); err != nil {
+					logger.Errorf("Failed to emit inflation rewards for epoch %d on startup: %v", epochInfo.Epoch-int64(i), err)
+				}
+			}
 		}
 	}
 
