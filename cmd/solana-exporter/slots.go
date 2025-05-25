@@ -349,18 +349,17 @@ func (c *SlotWatcher) checkValidSlotRange(from, to int64) error {
 // moveSlotWatermark performs all the slot-watching tasks required to move the slotWatermark to the provided 'to' slot.
 func (c *SlotWatcher) moveSlotWatermark(ctx context.Context, to int64, currentSlot int64) {
 	c.logger.Infof("Moving watermark %v -> %v", c.slotWatermark, to)
-	startSlot := c.slotWatermark + 1
-	if startSlot > to {
-		return
-	}
-	// Fetch block production for the range
-	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, startSlot, to)
+	// Always query the full epoch range for robust metrics
+	startSlot := c.firstSlot
+	endSlot := c.lastSlot
+	c.logger.Debugf("Querying block production for full epoch: [%d -> %d]", startSlot, endSlot)
+	blockProduction, err := c.client.GetBlockProduction(ctx, rpc.CommitmentFinalized, startSlot, endSlot)
 	if err != nil {
-		c.logger.Errorf("Failed to get block production for slots %d-%d: %v", startSlot, to, err)
+		c.logger.Errorf("Failed to get block production for slots %d-%d: %v", startSlot, endSlot, err)
 		return
 	}
-	c.processLeaderSlotsForValidator(ctx, startSlot, to, currentSlot, blockProduction)
-	c.fetchAndEmitBlockInfos(ctx, startSlot, to)
+	c.processLeaderSlotsForValidator(ctx, startSlot, endSlot, currentSlot, blockProduction)
+	c.fetchAndEmitBlockInfos(ctx, startSlot, endSlot)
 	c.slotWatermark = to
 }
 
